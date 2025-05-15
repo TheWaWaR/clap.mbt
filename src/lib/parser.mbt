@@ -28,6 +28,7 @@ enum Nargs {
 struct SubCommand {
   name: String
   args: Array[Argument]
+  /// If there is sub-commands position, positional arguments in currently level is forbiden.
   subcmds: Array[SubCommand]
   help: String
 }
@@ -35,16 +36,32 @@ struct Parser {
   /// The program name
   prog: String
   args: Array[Argument]
+  /// If there is sub-commands position, positional arguments in currently level is forbiden.
   subcmds: Array[SubCommand]
   description: String
 }
+enum ParserState {
+  Idle
+  NormalArgName(String)
+  PositionArgs(Array[String])
+  SubCommandName(String)
+}
 pub fn Parser::parse(args: ArrayView[String]) -> Value {
-  Value::{ 
+  let mut state = ParserState::Idle
+  let mut value = Value::{ 
     args: @hashmap.new(), 
     flags: @hashmap.new(), 
     positional_args: [], 
     subcmd: None 
   }
+  for arg in args {
+    match arg {
+      [.."--", ..name] => {}
+      [.."-", ..short_char] => {}
+    }
+  }
+
+  value
 }
 
 struct Value {
