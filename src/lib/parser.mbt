@@ -70,12 +70,19 @@ pub fn Parser::parse(
   let mut subcmds = self.subcmds
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
-  fn handle_current_arg(cli_arg : String) -> (String, Argument)?!ParserError {
-    guard current_arg is Some((name, arg)) else {
+  fn handle_current_arg(
+    cli_arg : String,
+    new_arg : (String, Argument)?
+  ) -> (String, Argument)?!ParserError {
+    guard new_arg is Some((name, arg)) else {
       raise InvalidArgumentName(
         "Invalid argument name \{cli_arg} for \{cmd_name}",
       )
     }
+    // TODO: 
+    //   * check arg.nargs
+    //   * check arg.positional
+    //   * check arg.choices
     if arg.nargs.flag_value() is Some(flag_value) {
       value.flags.set(name, flag_value)
       None
@@ -88,8 +95,8 @@ pub fn Parser::parse(
     match cli_arg {
       [.. "--", .. name] => {
         let name = name.to_string()
-        current_arg = args.get(name).map(fn(arg) { (name, arg) })
-        current_arg = handle_current_arg!(cli_arg)
+        let new_arg = args.get(name).map(fn(arg) { (name, arg) })
+        current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       [.. "-", .. rest] => {
         guard rest.char_length() == 1 else {
@@ -98,10 +105,10 @@ pub fn Parser::parse(
           )
         }
         let short_char = rest.char_at(0)
-        current_arg = args
+        let new_arg = args
           .iter()
           .find_first(fn(pair) { pair.1.short == Some(short_char) })
-        current_arg = handle_current_arg!(cli_arg)
+        current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       value =>
         if current_arg is Some((name, arg)) {
