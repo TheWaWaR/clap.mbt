@@ -10,6 +10,23 @@ pub(all) struct Argument {
 }
 
 ///|
+pub fn Argument::new(
+  short~ : Char? = None,
+  nargs~ : Nargs = None(true),
+  positional~ : Bool = false,
+  choices~ : ArrayView[String] = [],
+  default~ : ArrayView[String] = [],
+  help~ : String = ""
+) -> Argument {
+  { short, nargs, positional, choices, default, help }
+}
+
+///|
+pub fn Argument::is_flag(self : Argument) -> Bool {
+  not(self.nargs.flag_value().is_empty())
+}
+
+///|
 pub(all) enum Nargs {
   Any
   /// n == 0 (flag argument, store: true/false, default: not(store))
@@ -94,10 +111,10 @@ pub fn Parser::parse(
   self : Parser,
   cli_args : ArrayView[String]
 ) -> Value!ParserError {
-  let value = Value::default()
   let mut cmd_name = self.prog
   let mut args = self.args
   let mut subcmds = self.subcmds
+  let value = Value::new(cmd_name)
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
   fn handle_current_arg(
@@ -119,6 +136,44 @@ pub fn Parser::parse(
       None
     } else {
       Some((name, arg))
+    }
+  }
+
+  // * set default value if missing
+  // * check argument value length is valid
+  fn complete_level() -> Unit!ParserError {
+    for name, define_args in args.iter2() {
+      if define_args.positional {
+        if current_value.positional_args.is_empty() {
+          current_value.positional_args.append(define_args.default.to_array())
+        }
+        let length = current_value.positional_args
+          .length()
+          .reinterpret_as_uint()
+        if not(define_args.nargs.is_valid_length(length)) {
+          raise InvalidArgumentValueLength(
+            "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
+          )
+        }
+      } else if define_args.nargs.flag_value() is Some(store_value) {
+        if not(current_value.flags.contains(name)) {
+          current_value.flags.set(name, not(store_value))
+        }
+      } else {
+        if current_value.args.get_or_default(name, []).is_empty() {
+          current_value.args.set(name, define_args.default.to_array())
+        }
+        let length = current_value.args
+          .get(name)
+          .unwrap()
+          .length()
+          .reinterpret_as_uint()
+        if not(define_args.nargs.is_valid_length(length)) {
+          raise InvalidArgumentValueLength(
+            "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
+          )
+        }
+      }
     }
   }
 
@@ -150,18 +205,18 @@ pub fn Parser::parse(
         current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       // == Normal argument ==
-      value if current_arg is Some((name, arg)) => {
-        if arg.choices.length() > 0 && not(arg.choices.contains(value)) {
+      value_string if current_arg is Some((name, arg)) => {
+        if arg.choices.length() > 0 && not(arg.choices.contains(value_string)) {
           raise InvalidArgumentValue(
-            "Invalid argument value for \{cmd_name} => \{name}, value=\{value}, choices=\{arg.choices}",
+            "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{arg.choices}",
           )
         }
         let mut new_length : Int = 1
         if current_value.args.get(name) is Some(args) {
           new_length = args.length() + 1
-          args.push(value)
+          args.push(value_string)
         } else {
-          current_value.args.set(name, [value])
+          current_value.args.set(name, [value_string])
         }
         if arg.nargs.is_exceeded(new_length.reinterpret_as_uint()) {
           raise TooManyArgs(
@@ -171,93 +226,106 @@ pub fn Parser::parse(
       }
       // == SubCommand ==
       value if subcmds.get(value) is Some(subcmd) => {
-        // * set default value if missing
-        // * check argument value length is valid
-        for name, define_args in args.iter2() {
-          if define_args.positional {
-            if current_value.positional_args.is_empty() {
-              current_value.positional_args.append(
-                define_args.default.to_array(),
-              )
-            }
-            let length = current_value.positional_args
-              .length()
-              .reinterpret_as_uint()
-            if not(define_args.nargs.is_valid_length(length)) {
-              raise InvalidArgumentValueLength(
-                "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
-              )
-            }
-          } else if define_args.nargs.flag_value() is Some(store_value) {
-            if not(current_value.flags.contains(name)) {
-              current_value.flags.set(name, not(store_value))
-            }
-          } else {
-            if current_value.args.get_or_default(name, []).is_empty() {
-              current_value.args.set(name, define_args.default.to_array())
-            }
-            let length = current_value.args
-              .get(name)
-              .unwrap()
-              .length()
-              .reinterpret_as_uint()
-            if not(define_args.nargs.is_valid_length(length)) {
-              raise InvalidArgumentValueLength(
-                "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
-              )
-            }
-          }
-        }
+        complete_level!()
         // switch to selected sub-command
         cmd_name = value.to_string()
         args = subcmd.args
         subcmds = subcmd.subcmds
-        let subcmd_value = SubCommandValue::{
-          name: cmd_name,
-          val: Value::default(),
-        }
+        let subcmd_value = Value::new(cmd_name)
         current_value.subcmd = Some(subcmd_value)
-        current_value = subcmd_value.val
+        current_value = subcmd_value
       }
       // == Positional argument ==
-      value if args.iter().any(fn(pair) { pair.1.positional }) =>
-        current_value.positional_args.push(value)
+      value_string if args.iter().any(fn(pair) { pair.1.positional }) =>
+        current_value.positional_args.push(value_string)
       value =>
         raise InvalidSubCommandName(
           "Invalid sub-command name \{value} for \{cmd_name}",
         )
     }
   }
+  complete_level!()
   value
 }
 
 ///|
 pub fn Parser::gen_help_message(self : Parser, value : Value) -> String {
-  "TODO"
+  let builder = StringBuilder::new(size_hint=32)
+  builder.write_string("Usage: ")
+  let mut args = self.args
+  let mut subcmds = self.subcmds
+  let mut current_value = value
+  while true {
+    builder.write_string(current_value.name)
+    guard current_value.subcmd is Some(next_value) else { break }
+    builder.write_char(' ')
+    let subcmd = subcmds.get(next_value.name).unwrap()
+    args = subcmd.args
+    subcmds = subcmd.subcmds
+    current_value = next_value
+  }
+  builder.write_char(' ')
+  builder.write_string("[OPTIONS]")
+  if not(subcmds.is_empty()) {
+    builder.write_char(' ')
+    builder.write_string("<COMMAND>")
+  }
+  builder.write_char('\n')
+  builder.write_char('\n')
+  if not(subcmds.is_empty()) {
+    builder.write_string("Commands:\n")
+    for name in subcmds.keys() {
+      builder.write_string("  \{name}\n")
+    }
+    builder.write_char('\n')
+  }
+  builder.write_string("Options:\n")
+  let options = []
+  for name, arg in args.iter2() {
+    let short_string = match arg.short {
+      Some(short) => "-\{short},"
+      None => "   "
+    }
+    let long_string = if arg.is_flag() {
+      "--\{name}"
+    } else {
+      "--\{name} <\{name.to_upper()}>"
+    }
+    let length = short_string.char_length() + long_string.char_length()
+    options.push((short_string, long_string, length, arg.help))
+  }
+  options.push(("-h,", "--help", 9, "Print help"))
+  let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()
+  for item in options {
+    let (short_string, long_string, length, help) = item
+    builder.write_string("  \{short_string} \{long_string}  ")
+    for _ in 0..<(max_length - length) {
+      builder.write_char(' ')
+    }
+    builder.write_string(help)
+    builder.write_char('\n')
+  }
+  builder.to_string()
 }
 
 ///|
 pub(all) struct Value {
+  name : String
   args : @hashmap.T[String, Array[String]]
   flags : @hashmap.T[String, Bool]
   positional_args : Array[String]
-  mut subcmd : SubCommandValue?
+  mut subcmd : Value?
   mut help_message : String?
 }
 
 ///|
-pub fn Value::default() -> Value {
+pub fn Value::new(name : String) -> Value {
   Value::{
+    name,
     args: @hashmap.new(),
     flags: @hashmap.new(),
     positional_args: [],
     subcmd: None,
     help_message: None,
   }
-}
-
-///|
-pub(all) struct SubCommandValue {
-  name : String
-  val : Value
 }
