@@ -115,6 +115,7 @@ pub fn Parser::parse[V : Value](
   let mut args = self.args
   let mut subcmds = self.subcmds
   let value = V::new(cmd_name)
+  let args_length : @hashmap.T[String, UInt] = @hashmap.new()
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
   fn handle_current_arg(
@@ -307,7 +308,51 @@ pub(all) struct SimpleValue {
 }
 
 ///|
-pub fn SimpleValue::new(name : String) -> SimpleValue {
+pub(open) trait Value {
+  // TODO: 
+  //   * remove Value::new
+  //   * return help message if --help given
+  //   * Parser::parse(cli_args, value) -> String?!ParserError
+  new(name : String) -> Self
+  set_flag(Self, name : String, value : Bool) -> Unit!ParserError = _
+  add_value(Self, name : String, value : String, positional : Bool) ->
+       Unit!ParserError = _
+  select_subcmd(Self, subcmd : String) -> Self!ParserError = _
+
+  // TODO: remove this
+  set_help_message(Self, message : String) -> Unit
+  // TODO: remove this
+  get_name(Self) -> String
+  // TODO: remove this
+  get_subcmd(Self) -> Self?
+  // TODO: remove this
+  get_arg_value_length(Self, name : String, positional : Bool) -> Int
+}
+
+///|
+impl Value with set_flag(_self, _name : String, _value : Bool) -> Unit!ParserError {
+
+}
+
+///|
+impl Value with add_value(
+  _self,
+  _name : String,
+  _value : String,
+  _positional : Bool
+) -> Unit!ParserError {
+
+}
+
+///|
+impl Value with select_subcmd(_self, subcmd : String) -> Self!ParserError {
+  raise ParserError::InvalidSubCommandName(
+    "Invalid sub-command \{subcmd}, unimplemented",
+  )
+}
+
+///|
+pub impl Value for SimpleValue with new(name : String) -> SimpleValue {
   SimpleValue::{
     name,
     args: @hashmap.new(),
@@ -319,34 +364,8 @@ pub fn SimpleValue::new(name : String) -> SimpleValue {
 }
 
 ///|
-pub(open) trait Value {
-  new(name : String) -> Self
-  set_flag(Self, name : String, value : Bool) -> Unit!ParserError
-  set_help_message(Self, message : String) -> Unit
-  add_value(Self, name : String, value : String, positional : Bool) ->
-       Unit!ParserError
-  get_name(Self) -> String
-  get_subcmd(Self) -> Self?
-  get_arg_value_length(Self, name : String, positional : Bool) -> Int
-  select_subcmd(Self, subcmd : String) -> Self!ParserError
-}
-
-///|
-pub impl Value for SimpleValue with new(name : String) -> SimpleValue {
-  SimpleValue::new(name)
-}
-
-///|
 pub impl Value for SimpleValue with set_flag(self, name : String, value : Bool) -> Unit!ParserError {
   self.flags.set(name, value)
-}
-
-///|
-pub impl Value for SimpleValue with set_help_message(
-  self,
-  help_message : String
-) -> Unit {
-  self.help_message = Some(help_message)
 }
 
 ///|
@@ -363,6 +382,26 @@ pub impl Value for SimpleValue with add_value(
   } else {
     self.args.set(name, [value])
   }
+}
+
+///|
+pub impl Value for SimpleValue with select_subcmd(self, subcmd : String) -> SimpleValue!ParserError {
+  match self.subcmd {
+    Some(subcmd_value) => subcmd_value
+    None => {
+      let subcmd_value = SimpleValue::new(subcmd)
+      self.subcmd = Some(subcmd_value)
+      subcmd_value
+    }
+  }
+}
+
+///|
+pub impl Value for SimpleValue with set_help_message(
+  self,
+  help_message : String
+) -> Unit {
+  self.help_message = Some(help_message)
 }
 
 ///|
@@ -389,17 +428,5 @@ pub impl Value for SimpleValue with get_arg_value_length(
     1
   } else {
     0
-  }
-}
-
-///|
-pub impl Value for SimpleValue with select_subcmd(self, subcmd : String) -> SimpleValue!ParserError {
-  match self.subcmd {
-    Some(subcmd_value) => subcmd_value
-    None => {
-      let subcmd_value = SimpleValue::new(subcmd)
-      self.subcmd = Some(subcmd_value)
-      subcmd_value
-    }
   }
 }
