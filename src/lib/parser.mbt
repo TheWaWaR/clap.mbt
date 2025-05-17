@@ -107,14 +107,14 @@ pub type! ParserError {
 }
 
 ///|
-pub fn Parser::parse(
+pub fn Parser::parse[V : Value](
   self : Parser,
   cli_args : ArrayView[String]
-) -> Value!ParserError {
+) -> V!ParserError {
   let mut cmd_name = self.prog
   let mut args = self.args
   let mut subcmds = self.subcmds
-  let value = Value::new(cmd_name)
+  let value = V::new(cmd_name)
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
   fn handle_current_arg(
@@ -132,7 +132,7 @@ pub fn Parser::parse(
       )
     }
     if arg.nargs.flag_value() is Some(flag_value) {
-      value.flags.set(name, flag_value)
+      value.set_flag!(name, flag_value)
       None
     } else {
       Some((name, arg))
@@ -143,35 +143,30 @@ pub fn Parser::parse(
   // * check argument value length is valid
   fn complete_level() -> Unit!ParserError {
     for name, define_args in args.iter2() {
-      if define_args.positional {
-        if current_value.positional_args.is_empty() {
-          current_value.positional_args.append(define_args.default.to_array())
-        }
-        let length = current_value.positional_args
-          .length()
-          .reinterpret_as_uint()
-        if not(define_args.nargs.is_valid_length(length)) {
-          raise InvalidArgumentValueLength(
-            "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
-          )
-        }
-      } else if define_args.nargs.flag_value() is Some(store_value) {
-        if not(current_value.flags.contains(name)) {
-          current_value.flags.set(name, not(store_value))
+      let positional = define_args.positional
+      let length = current_value
+        .get_arg_value_length(name, positional)
+        .reinterpret_as_uint()
+      if define_args.nargs.flag_value() is Some(store_value) {
+        if length == 0 {
+          current_value.set_flag!(name, not(store_value))
         }
       } else {
-        if current_value.args.get_or_default(name, []).is_empty() {
-          current_value.args.set(name, define_args.default.to_array())
+        if current_value.get_arg_value_length(name, positional) == 0 {
+          for default_value in define_args.default {
+            current_value.add_value!(name, default_value, positional)
+          }
         }
-        let length = current_value.args
-          .get(name)
-          .unwrap()
-          .length()
-          .reinterpret_as_uint()
         if not(define_args.nargs.is_valid_length(length)) {
-          raise InvalidArgumentValueLength(
-            "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
-          )
+          if define_args.positional {
+            raise InvalidArgumentValueLength(
+              "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
+            )
+          } else {
+            raise InvalidArgumentValueLength(
+              "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
+            )
+          }
         }
       }
     }
@@ -181,7 +176,7 @@ pub fn Parser::parse(
     match cli_arg {
       [.. "--", .. name] => {
         if name == "help" {
-          value.help_message = Some(self.gen_help_message(value))
+          value.set_help_message(self.gen_help_message(value))
           return value
         }
         let name = name.to_string()
@@ -196,7 +191,7 @@ pub fn Parser::parse(
         }
         let short_char = rest.char_at(0)
         if short_char == 'h' {
-          value.help_message = Some(self.gen_help_message(value))
+          value.set_help_message(self.gen_help_message(value))
           return value
         }
         let new_arg = args
@@ -211,13 +206,8 @@ pub fn Parser::parse(
             "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{arg.choices}",
           )
         }
-        let mut new_length : Int = 1
-        if current_value.args.get(name) is Some(args) {
-          new_length = args.length() + 1
-          args.push(value_string)
-        } else {
-          current_value.args.set(name, [value_string])
-        }
+        current_value.add_value!(name, value_string, false)
+        let new_length = current_value.get_arg_value_length(name, false)
         if arg.nargs.is_exceeded(new_length.reinterpret_as_uint()) {
           raise TooManyArgs(
             "Argument length limit: \{arg.nargs}, current length: \{new_length}",
@@ -231,13 +221,11 @@ pub fn Parser::parse(
         cmd_name = value.to_string()
         args = subcmd.args
         subcmds = subcmd.subcmds
-        let subcmd_value = Value::new(cmd_name)
-        current_value.subcmd = Some(subcmd_value)
-        current_value = subcmd_value
+        current_value = current_value.select_subcmd!(cmd_name)
       }
       // == Positional argument ==
-      value_string if args.iter().any(fn(pair) { pair.1.positional }) =>
-        current_value.positional_args.push(value_string)
+      value_string if args.iter().find_first(fn(pair) { pair.1.positional })
+        is Some(arg) => current_value.add_value!(arg.0, value_string, true)
       value =>
         raise InvalidSubCommandName(
           "Invalid sub-command name \{value} for \{cmd_name}",
@@ -249,17 +237,17 @@ pub fn Parser::parse(
 }
 
 ///|
-pub fn Parser::gen_help_message(self : Parser, value : Value) -> String {
+pub fn Parser::gen_help_message[V : Value](self : Parser, value : V) -> String {
   let builder = StringBuilder::new(size_hint=32)
   builder.write_string("Usage: ")
   let mut args = self.args
   let mut subcmds = self.subcmds
   let mut current_value = value
   while true {
-    builder.write_string(current_value.name)
-    guard current_value.subcmd is Some(next_value) else { break }
+    builder.write_string(current_value.get_name())
+    guard current_value.get_subcmd() is Some(next_value) else { break }
     builder.write_char(' ')
-    let subcmd = subcmds.get(next_value.name).unwrap()
+    let subcmd = subcmds.get(next_value.get_name()).unwrap()
     args = subcmd.args
     subcmds = subcmd.subcmds
     current_value = next_value
@@ -309,23 +297,109 @@ pub fn Parser::gen_help_message(self : Parser, value : Value) -> String {
 }
 
 ///|
-pub(all) struct Value {
+pub(all) struct SimpleValue {
   name : String
   args : @hashmap.T[String, Array[String]]
   flags : @hashmap.T[String, Bool]
   positional_args : Array[String]
-  mut subcmd : Value?
+  mut subcmd : SimpleValue?
   mut help_message : String?
 }
 
 ///|
-pub fn Value::new(name : String) -> Value {
-  Value::{
+pub fn SimpleValue::new(name : String) -> SimpleValue {
+  SimpleValue::{
     name,
     args: @hashmap.new(),
     flags: @hashmap.new(),
     positional_args: [],
     subcmd: None,
     help_message: None,
+  }
+}
+
+///|
+pub(open) trait Value {
+  new(name : String) -> Self
+  set_flag(Self, name : String, value : Bool) -> Unit!ParserError
+  set_help_message(Self, message : String) -> Unit
+  add_value(Self, name : String, value : String, positional : Bool) ->
+       Unit!ParserError
+  get_name(Self) -> String
+  get_subcmd(Self) -> Self?
+  get_arg_value_length(Self, name : String, positional : Bool) -> Int
+  select_subcmd(Self, subcmd : String) -> Self!ParserError
+}
+
+///|
+pub impl Value for SimpleValue with new(name : String) -> SimpleValue {
+  SimpleValue::new(name)
+}
+
+///|
+pub impl Value for SimpleValue with set_flag(self, name : String, value : Bool) -> Unit!ParserError {
+  self.flags.set(name, value)
+}
+
+///|
+pub impl Value for SimpleValue with set_help_message(
+  self,
+  help_message : String
+) -> Unit {
+  self.help_message = Some(help_message)
+}
+
+///|
+pub impl Value for SimpleValue with add_value(
+  self,
+  name : String,
+  value : String,
+  positional : Bool
+) -> Unit!ParserError {
+  if positional {
+    self.positional_args.push(value)
+  } else if self.args.get(name) is Some(values) {
+    values.push(value)
+  } else {
+    self.args.set(name, [value])
+  }
+}
+
+///|
+pub impl Value for SimpleValue with get_name(self) -> String {
+  self.name
+}
+
+///|
+pub impl Value for SimpleValue with get_subcmd(self) -> SimpleValue? {
+  self.subcmd
+}
+
+///|
+pub impl Value for SimpleValue with get_arg_value_length(
+  self,
+  name : String,
+  positional : Bool
+) -> Int {
+  if positional {
+    self.positional_args.length()
+  } else if self.args.get(name) is Some(values) {
+    values.length()
+  } else if self.flags.contains(name) {
+    1
+  } else {
+    0
+  }
+}
+
+///|
+pub impl Value for SimpleValue with select_subcmd(self, subcmd : String) -> SimpleValue!ParserError {
+  match self.subcmd {
+    Some(subcmd_value) => subcmd_value
+    None => {
+      let subcmd_value = SimpleValue::new(subcmd)
+      self.subcmd = Some(subcmd_value)
+      subcmd_value
+    }
   }
 }

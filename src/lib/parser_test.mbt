@@ -8,7 +8,7 @@ test "parse" {
     subcmds: {},
     description: "Test program",
   }
-  let value = parser.parse!(["--arg1", "abc"])
+  let value : SimpleValue = parser.parse!(["--arg1", "abc"])
   assert_eq!(value.name, "PROG")
   assert_eq!(value.args.size(), 1)
   assert_eq!(value.args.get("arg1").unwrap(), ["abc"])
@@ -16,7 +16,7 @@ test "parse" {
   assert_eq!(value.positional_args.is_empty(), true)
   assert_eq!(value.subcmd.is_empty(), true)
   assert_eq!(value.help_message.is_empty(), true)
-  let value = parser.parse!(["--help"])
+  let value : SimpleValue = parser.parse!(["--help"])
   let help_message =
     #|Usage: PROG [OPTIONS]
     #|
