@@ -127,14 +127,15 @@ pub(all) struct Parser {
 }
 
 ///|
-pub type! ParserError {
+pub(all) type! ParserError {
   InvalidArgumentName(String)
   InvalidSubCommandName(String)
   InvalidPositionalAsName(String)
   InvalidArgumentValue(String)
   InvalidArgumentValueLength(String)
   TooManyArgs(String)
-}
+  InvalidSpec(String)
+} derive(Show)
 
 ///|
 pub fn Parser::parse[V : Value](
@@ -145,10 +146,22 @@ pub fn Parser::parse[V : Value](
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
   let mut args = self.args
+  let mut position_arg = args.iter().find_first(fn(pair) { pair.1.positional })
   let mut subcmds = self.subcmds
   let args_length : @hashmap.T[String, UInt] = @hashmap.new()
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
+  let mut nargs_error : ParserError? = None
+  fn check_spec() -> Unit!ParserError {
+    if position_arg is Some((name, _)) {
+      if not(subcmds.is_empty()) {
+        raise InvalidSpec(
+          "Invalid argument specification: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
+        )
+      }
+    }
+  }
+
   fn update_args_length(name : String) -> Unit {
     args_length.set(name, args_length.get_or_default(name, 0) + 1)
   }
@@ -178,7 +191,7 @@ pub fn Parser::parse[V : Value](
 
   // * set default value if missing
   // * check argument value length is valid
-  fn complete_level() -> Unit!ParserError {
+  fn complete_level(has_subcmd : Bool) -> Unit!ParserError {
     for name, define_args in args.iter2() {
       let positional = define_args.positional
       let length = args_length.get_or_default(name, 0)
@@ -188,20 +201,34 @@ pub fn Parser::parse[V : Value](
           update_args_length(name)
         }
       } else {
-        if length == 0 {
+        if length == 0 && not(positional && has_subcmd) {
           for default_value in define_args.default {
             current_value.add_value!(name, default_value, positional)
             update_args_length(name)
           }
         }
         if not(define_args.nargs.is_valid_length(length)) {
-          if define_args.positional {
-            raise InvalidArgumentValueLength(
-              "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
-            )
+          if positional {
+            if has_subcmd {
+              if length != 0 {
+                nargs_error = Some(
+                  InvalidArgumentValueLength(
+                    "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
+                  ),
+                )
+              }
+            } else {
+              nargs_error = Some(
+                InvalidArgumentValueLength(
+                  "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
+                ),
+              )
+            }
           } else {
-            raise InvalidArgumentValueLength(
-              "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
+            nargs_error = Some(
+              InvalidArgumentValueLength(
+                "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
+              ),
             )
           }
         }
@@ -209,6 +236,7 @@ pub fn Parser::parse[V : Value](
     }
   }
 
+  check_spec!()
   for cli_arg in cli_args {
     match cli_arg {
       [.. "--", .. name] => {
@@ -249,20 +277,27 @@ pub fn Parser::parse[V : Value](
             "Argument length limit: \{arg.nargs}, current length: \{new_length}",
           )
         }
+        if (not(position_arg.is_empty()) || not(subcmds.is_empty())) &&
+          arg.nargs.is_exceeded(new_length + 1) {
+          current_arg = None
+        }
       }
       // == SubCommand ==
       value if subcmds.get(value) is Some(subcmd) => {
-        complete_level!()
+        complete_level!(true)
         // switch to selected sub-command
         cmd_name = value.to_string()
         subcmd_chains.push(cmd_name)
         args = subcmd.args
+        position_arg = args.iter().find_first(fn(pair) { pair.1.positional })
         subcmds = subcmd.subcmds
+        args_length.clear()
         current_value = current_value.select_subcmd!(cmd_name)
+        current_arg = None
+        check_spec!()
       }
       // == Positional argument ==
-      value_string if args.iter().find_first(fn(pair) { pair.1.positional })
-        is Some(arg) => {
+      value_string if position_arg is Some(arg) => {
         let name = arg.0
         current_value.add_value!(name, value_string, true)
         update_args_length(name)
@@ -273,7 +308,10 @@ pub fn Parser::parse[V : Value](
         )
     }
   }
-  complete_level!()
+  complete_level!(false)
+  if nargs_error is Some(err) {
+    raise err
+  }
   None
 }
 

@@ -138,3 +138,152 @@ test "parse simple subcmd" {
     #|
   assert_eq!(help_message, expected_help_message)
 }
+
+///|
+struct CustomValue {
+  mut debug : Bool
+  mut arg1 : String
+  mut subcmd : CustomCommands?
+}
+
+///|
+enum CustomCommands {
+  SubCommand1(verbose~ : Bool, positional_args~ : Array[UInt])
+} derive(Show, Eq)
+
+///|
+impl Value for CustomValue with set_flag(self, name : String, value : Bool) -> Unit!ParserError {
+  match self.subcmd {
+    None => {
+      guard name == "debug" else {
+        raise ParserError::InvalidArgumentName("Invalid flag \{name}=\{value}")
+      }
+      self.debug = value
+    }
+    Some(SubCommand1(positional_args~, ..)) => {
+      guard name == "verbose" else {
+        raise ParserError::InvalidArgumentName(
+          "Invalid subcmd1 flag \{name}=\{value}",
+        )
+      }
+      self.subcmd = Some(SubCommand1(verbose=value, positional_args~))
+    }
+  }
+}
+
+///|
+impl Value for CustomValue with add_value(
+  self,
+  name : String,
+  value : String,
+  _positional : Bool
+) -> Unit!ParserError {
+  match self.subcmd {
+    None =>
+      match name {
+        "arg1" => self.arg1 = value
+        _ =>
+          raise ParserError::InvalidArgumentName(
+            "Invalid argument name \{name}",
+          )
+      }
+    Some(SubCommand1(positional_args~, ..)) =>
+      match name {
+        "arg2" => {
+          guard @strconv.parse_uint?(value) is Ok(value) else {
+            raise ParserError::InvalidArgumentValue(
+              "Invalid value \{value} for argument \{name}",
+            )
+          }
+          positional_args.push(value)
+        }
+        _ =>
+          raise ParserError::InvalidArgumentName(
+            "Invalid argument name \{name}",
+          )
+      }
+  }
+}
+
+///|
+impl Value for CustomValue with select_subcmd(self, name : String) -> CustomValue!ParserError {
+  match name {
+    "subcmd1" =>
+      self.subcmd = Some(SubCommand1(verbose=false, positional_args=[]))
+    _ =>
+      raise ParserError::InvalidSubCommandName(
+        "Invalid subcommand name \{name}",
+      )
+  }
+  self
+}
+
+///|
+test "parse custom value" {
+  let parser = Parser::{
+    prog: "PROG",
+    args: {
+      "debug": Argument::new_flag(short=Some('d'), help="Debug"),
+      "arg1": Argument::new_named(
+        short=Some('a'),
+        nargs=Fixed(1),
+        help="Argument 1",
+      ),
+    },
+    subcmds: {
+      "subcmd1": SubCommand::{
+        args: {
+          "verbose": Argument::new_flag(short=Some('v'), help="Verbose"),
+          "arg2": Argument::new_positional(nargs=Fixed(3), help="Argument 2"),
+        },
+        subcmds: {},
+        help: "Test subcommand",
+      },
+    },
+    description: "Test program",
+  }
+  let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
+  let help_message = parser.parse!(value, ["--debug", "--arg1", "value1"])
+  assert_eq!(help_message, None)
+  assert_eq!(value.debug, true)
+  assert_eq!(value.arg1, "value1")
+  assert_eq!(value.subcmd.is_empty(), true)
+  let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
+  let help_message = parser.parse!(value, ["--help"]).unwrap()
+  let expected_help_message =
+    #|Usage: PROG [OPTIONS] <COMMAND>
+    #|
+    #|Commands:
+    #|  subcmd1  Test subcommand
+    #|
+    #|Options:
+    #|  -d, --debug        Debug
+    #|  -a, --arg1 <ARG1>  Argument 1
+    #|  -h, --help         Print help
+    #|
+  assert_eq!(help_message, expected_help_message)
+  let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
+  let help_message = parser.parse!(value, [
+    "--debug", "--arg1", "value1", "subcmd1", "--verbose", "33", "44", "55",
+  ])
+  assert_eq!(help_message, None)
+  assert_eq!(value.debug, true)
+  assert_eq!(value.arg1, "value1")
+  assert_eq!(
+    value.subcmd.unwrap(),
+    SubCommand1(verbose=true, positional_args=[33, 44, 55]),
+  )
+  let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
+  let help_message = parser.parse!(value, ["subcmd1", "--help"]).unwrap()
+  let expected_help_message =
+    #|Usage: PROG subcmd1 [OPTIONS] [ARG2]...
+    #|
+    #|Arguments:
+    #|  [ARG2]...  Argument 2
+    #|
+    #|Options:
+    #|  -v, --verbose  Verbose
+    #|  -h, --help     Print help
+    #|
+  assert_eq!(help_message, expected_help_message)
+}
