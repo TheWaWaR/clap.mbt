@@ -22,6 +22,36 @@ pub fn Argument::new(
 }
 
 ///|
+pub fn Argument::new_flag(
+  short~ : Char? = None,
+  nargs~ : Nargs = None(true),
+  help~ : String = ""
+) -> Argument {
+  { short, nargs, positional: false, choices: [], default: [], help }
+}
+
+///|
+pub fn Argument::new_named(
+  short~ : Char? = None,
+  nargs~ : Nargs = Any,
+  choices~ : ArrayView[String] = [],
+  default~ : ArrayView[String] = [],
+  help~ : String = ""
+) -> Argument {
+  { short, nargs, positional: false, choices, default, help }
+}
+
+///|
+pub fn Argument::new_positional(
+  nargs~ : Nargs = Any,
+  choices~ : ArrayView[String] = [],
+  default~ : ArrayView[String] = [],
+  help~ : String = ""
+) -> Argument {
+  { short: None, nargs, positional: true, choices, default, help }
+}
+
+///|
 pub fn Argument::is_flag(self : Argument) -> Bool {
   not(self.nargs.flag_value().is_empty())
 }
@@ -41,7 +71,7 @@ pub(all) enum Nargs {
   AtMost(UInt)
   /// X <= n < Y
   Range(UInt, UInt)
-} derive(Show)
+} derive(Show, Eq)
 
 ///|
 pub fn Nargs::flag_value(self : Nargs) -> Bool? {
@@ -138,7 +168,7 @@ pub fn Parser::parse[V : Value](
       )
     }
     if arg.nargs.flag_value() is Some(flag_value) {
-      value.set_flag!(name, flag_value)
+      current_value.set_flag!(name, flag_value)
       update_args_length(name)
       None
     } else {
@@ -270,18 +300,49 @@ fn Parser::gen_help_message(
     builder.write_char(' ')
     builder.write_string("<COMMAND>")
   }
+  let arg_pos_mark = if args.iter().find_first(fn(pair) { pair.1.positional })
+    is Some((name, arg)) {
+    let name_upper = name.to_upper()
+    let label = if arg.nargs is Nargs::Fixed(1) {
+      "<\{name_upper}>"
+    } else if arg.nargs.is_exceeded(2) {
+      "[\{name_upper}]"
+    } else {
+      "[\{name_upper}]..."
+    }
+    builder.write_char(' ')
+    builder.write_string(label)
+    Some((label, arg.help))
+  } else {
+    None
+  }
   builder.write_char('\n')
   builder.write_char('\n')
   if not(subcmds.is_empty()) {
     builder.write_string("Commands:\n")
-    for name in subcmds.keys() {
-      builder.write_string("  \{name}\n")
+    let max_length = subcmds
+      .iter()
+      .map(fn(pair) { pair.0.char_length() })
+      .maximum()
+      .unwrap()
+    for name, subcmd in subcmds.iter2() {
+      builder.write_string("  \{name}  ")
+      for _ in 0..<(max_length - name.char_length()) {
+        builder.write_char(' ')
+      }
+      builder.write_string(subcmd.help)
+      builder.write_char('\n')
     }
     builder.write_char('\n')
+  }
+  if arg_pos_mark is Some((label, help)) {
+    builder.write_string("Arguments:\n")
+    builder.write_string("  \{label}  \{help}\n\n")
   }
   builder.write_string("Options:\n")
   let options = []
   for name, arg in args.iter2() {
+    guard arg.positional == false else { continue }
     let short_string = match arg.short {
       Some(short) => "-\{short},"
       None => "   "
@@ -315,7 +376,7 @@ pub(all) struct SimpleValue {
   flags : @hashmap.T[String, Bool]
   positional_args : Array[String]
   mut subcmd : SimpleValue?
-}
+} derive(Show, Eq)
 
 ///|
 pub fn SimpleValue::new(name : String) -> SimpleValue {

@@ -2,9 +2,9 @@
   "name": "thewawar/clap",
   "version": "0.1.0",
   "readme": "README.md",
-  "repository": "",
+  "repository": "https://github.com/TheWaWaR/clap.mbt",
   "license": "MIT",
-  "keywords": [],
-  "description": "",
+  "keywords": ["utils", "command line", "parser"],
+  "description": "Command Line Argument Parser",
   "source": "src"
 }
