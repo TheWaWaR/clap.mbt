@@ -316,7 +316,7 @@ pub fn Parser::parse[V : Value](
 }
 
 ///|
-fn Parser::gen_help_message(
+pub fn Parser::gen_help_message(
   self : Parser,
   subcmd_chains : Array[String]
 ) -> String {
