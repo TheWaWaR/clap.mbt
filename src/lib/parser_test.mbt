@@ -1,5 +1,5 @@
 ///|
-test "parse" {
+test "parse simple" {
   let parser = Parser::{
     prog: "PROG",
     args: {
@@ -8,21 +8,23 @@ test "parse" {
     subcmds: {},
     description: "Test program",
   }
-  let value : SimpleValue = parser.parse!(["--arg1", "abc"])
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["--arg1", "abc"])
+  assert_eq!(help_message, None)
   assert_eq!(value.name, "PROG")
   assert_eq!(value.args.size(), 1)
   assert_eq!(value.args.get("arg1").unwrap(), ["abc"])
   assert_eq!(value.flags.is_empty(), true)
   assert_eq!(value.positional_args.is_empty(), true)
   assert_eq!(value.subcmd.is_empty(), true)
-  assert_eq!(value.help_message.is_empty(), true)
-  let value : SimpleValue = parser.parse!(["--help"])
-  let help_message =
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["--help"]).unwrap()
+  let expected_help_message =
     #|Usage: PROG [OPTIONS]
     #|
     #|Options:
     #|  -a, --arg1 <ARG1>  Argument 1
     #|  -h, --help         Print help
     #|
-  assert_eq!(value.help_message, Some(help_message))
+  assert_eq!(help_message, expected_help_message)
 }

@@ -109,15 +109,20 @@ pub type! ParserError {
 ///|
 pub fn Parser::parse[V : Value](
   self : Parser,
+  value : V,
   cli_args : ArrayView[String]
-) -> V!ParserError {
+) -> String?!ParserError {
   let mut cmd_name = self.prog
+  let subcmd_chains = [cmd_name]
   let mut args = self.args
   let mut subcmds = self.subcmds
-  let value = V::new(cmd_name)
   let args_length : @hashmap.T[String, UInt] = @hashmap.new()
   let mut current_value = value
   let mut current_arg : (String, Argument)? = None
+  fn update_args_length(name : String) -> Unit {
+    args_length.set(name, args_length.get_or_default(name, 0) + 1)
+  }
+
   fn handle_current_arg(
     cli_arg : String,
     new_arg : (String, Argument)?
@@ -134,6 +139,7 @@ pub fn Parser::parse[V : Value](
     }
     if arg.nargs.flag_value() is Some(flag_value) {
       value.set_flag!(name, flag_value)
+      update_args_length(name)
       None
     } else {
       Some((name, arg))
@@ -145,17 +151,17 @@ pub fn Parser::parse[V : Value](
   fn complete_level() -> Unit!ParserError {
     for name, define_args in args.iter2() {
       let positional = define_args.positional
-      let length = current_value
-        .get_arg_value_length(name, positional)
-        .reinterpret_as_uint()
+      let length = args_length.get_or_default(name, 0)
       if define_args.nargs.flag_value() is Some(store_value) {
         if length == 0 {
           current_value.set_flag!(name, not(store_value))
+          update_args_length(name)
         }
       } else {
-        if current_value.get_arg_value_length(name, positional) == 0 {
+        if length == 0 {
           for default_value in define_args.default {
             current_value.add_value!(name, default_value, positional)
+            update_args_length(name)
           }
         }
         if not(define_args.nargs.is_valid_length(length)) {
@@ -177,8 +183,7 @@ pub fn Parser::parse[V : Value](
     match cli_arg {
       [.. "--", .. name] => {
         if name == "help" {
-          value.set_help_message(self.gen_help_message(value))
-          return value
+          return Some(self.gen_help_message(subcmd_chains))
         }
         let name = name.to_string()
         let new_arg = args.get(name).map(fn(arg) { (name, arg) })
@@ -192,8 +197,7 @@ pub fn Parser::parse[V : Value](
         }
         let short_char = rest.char_at(0)
         if short_char == 'h' {
-          value.set_help_message(self.gen_help_message(value))
-          return value
+          return Some(self.gen_help_message(subcmd_chains))
         }
         let new_arg = args
           .iter()
@@ -208,8 +212,9 @@ pub fn Parser::parse[V : Value](
           )
         }
         current_value.add_value!(name, value_string, false)
-        let new_length = current_value.get_arg_value_length(name, false)
-        if arg.nargs.is_exceeded(new_length.reinterpret_as_uint()) {
+        update_args_length(name)
+        let new_length = args_length.get_or_default(name, 0)
+        if arg.nargs.is_exceeded(new_length) {
           raise TooManyArgs(
             "Argument length limit: \{arg.nargs}, current length: \{new_length}",
           )
@@ -220,13 +225,18 @@ pub fn Parser::parse[V : Value](
         complete_level!()
         // switch to selected sub-command
         cmd_name = value.to_string()
+        subcmd_chains.push(cmd_name)
         args = subcmd.args
         subcmds = subcmd.subcmds
         current_value = current_value.select_subcmd!(cmd_name)
       }
       // == Positional argument ==
       value_string if args.iter().find_first(fn(pair) { pair.1.positional })
-        is Some(arg) => current_value.add_value!(arg.0, value_string, true)
+        is Some(arg) => {
+        let name = arg.0
+        current_value.add_value!(name, value_string, true)
+        update_args_length(name)
+      }
       value =>
         raise InvalidSubCommandName(
           "Invalid sub-command name \{value} for \{cmd_name}",
@@ -234,26 +244,27 @@ pub fn Parser::parse[V : Value](
     }
   }
   complete_level!()
-  value
+  None
 }
 
 ///|
-pub fn Parser::gen_help_message[V : Value](self : Parser, value : V) -> String {
+fn Parser::gen_help_message(
+  self : Parser,
+  subcmd_chains : Array[String]
+) -> String {
   let builder = StringBuilder::new(size_hint=32)
   builder.write_string("Usage: ")
   let mut args = self.args
   let mut subcmds = self.subcmds
-  let mut current_value = value
-  while true {
-    builder.write_string(current_value.get_name())
-    guard current_value.get_subcmd() is Some(next_value) else { break }
+  builder.write_string(subcmd_chains[0])
+  builder.write_char(' ')
+  for subcmd_name in subcmd_chains[1:] {
+    builder.write_string(subcmd_name)
     builder.write_char(' ')
-    let subcmd = subcmds.get(next_value.get_name()).unwrap()
+    let subcmd = subcmds.get(subcmd_name).unwrap()
     args = subcmd.args
     subcmds = subcmd.subcmds
-    current_value = next_value
   }
-  builder.write_char(' ')
   builder.write_string("[OPTIONS]")
   if not(subcmds.is_empty()) {
     builder.write_char(' ')
@@ -304,44 +315,44 @@ pub(all) struct SimpleValue {
   flags : @hashmap.T[String, Bool]
   positional_args : Array[String]
   mut subcmd : SimpleValue?
-  mut help_message : String?
+}
+
+///|
+pub fn SimpleValue::new(name : String) -> SimpleValue {
+  SimpleValue::{
+    name,
+    args: @hashmap.new(),
+    flags: @hashmap.new(),
+    positional_args: [],
+    subcmd: None,
+  }
 }
 
 ///|
 pub(open) trait Value {
-  // TODO: 
-  //   * remove Value::new
-  //   * return help message if --help given
-  //   * Parser::parse(cli_args, value) -> String?!ParserError
-  new(name : String) -> Self
   set_flag(Self, name : String, value : Bool) -> Unit!ParserError = _
   add_value(Self, name : String, value : String, positional : Bool) ->
        Unit!ParserError = _
   select_subcmd(Self, subcmd : String) -> Self!ParserError = _
-
-  // TODO: remove this
-  set_help_message(Self, message : String) -> Unit
-  // TODO: remove this
-  get_name(Self) -> String
-  // TODO: remove this
-  get_subcmd(Self) -> Self?
-  // TODO: remove this
-  get_arg_value_length(Self, name : String, positional : Bool) -> Int
 }
 
 ///|
-impl Value with set_flag(_self, _name : String, _value : Bool) -> Unit!ParserError {
-
+impl Value with set_flag(_self, name : String, _value : Bool) -> Unit!ParserError {
+  raise ParserError::InvalidArgumentName(
+    "Invalid argument name \{name}, unimplemented",
+  )
 }
 
 ///|
 impl Value with add_value(
   _self,
-  _name : String,
-  _value : String,
+  name : String,
+  value : String,
   _positional : Bool
 ) -> Unit!ParserError {
-
+  raise ParserError::InvalidArgumentValue(
+    "Invalid argument name=\{name}, value=\{value}, unimplemented",
+  )
 }
 
 ///|
@@ -349,18 +360,6 @@ impl Value with select_subcmd(_self, subcmd : String) -> Self!ParserError {
   raise ParserError::InvalidSubCommandName(
     "Invalid sub-command \{subcmd}, unimplemented",
   )
-}
-
-///|
-pub impl Value for SimpleValue with new(name : String) -> SimpleValue {
-  SimpleValue::{
-    name,
-    args: @hashmap.new(),
-    flags: @hashmap.new(),
-    positional_args: [],
-    subcmd: None,
-    help_message: None,
-  }
 }
 
 ///|
@@ -393,40 +392,5 @@ pub impl Value for SimpleValue with select_subcmd(self, subcmd : String) -> Simp
       self.subcmd = Some(subcmd_value)
       subcmd_value
     }
-  }
-}
-
-///|
-pub impl Value for SimpleValue with set_help_message(
-  self,
-  help_message : String
-) -> Unit {
-  self.help_message = Some(help_message)
-}
-
-///|
-pub impl Value for SimpleValue with get_name(self) -> String {
-  self.name
-}
-
-///|
-pub impl Value for SimpleValue with get_subcmd(self) -> SimpleValue? {
-  self.subcmd
-}
-
-///|
-pub impl Value for SimpleValue with get_arg_value_length(
-  self,
-  name : String,
-  positional : Bool
-) -> Int {
-  if positional {
-    self.positional_args.length()
-  } else if self.args.get(name) is Some(values) {
-    values.length()
-  } else if self.flags.contains(name) {
-    1
-  } else {
-    0
   }
 }
