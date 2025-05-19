@@ -4,7 +4,7 @@ pub(all) struct Argument {
   nargs : Nargs
   positional : Bool
   /// If this value is empty means not limit to those value
-  choices : ArrayView[String]
+  choices : @hashset.T[String]
   default : ArrayView[String]
   help : String
 }
@@ -14,7 +14,7 @@ pub fn Argument::new(
   short~ : Char? = None,
   nargs~ : Nargs = None(true),
   positional~ : Bool = false,
-  choices~ : ArrayView[String] = [],
+  choices~ : @hashset.T[String] = @hashset.new(),
   default~ : ArrayView[String] = [],
   help~ : String = ""
 ) -> Argument {
@@ -27,14 +27,21 @@ pub fn Argument::new_flag(
   nargs~ : Nargs = None(true),
   help~ : String = ""
 ) -> Argument {
-  { short, nargs, positional: false, choices: [], default: [], help }
+  {
+    short,
+    nargs,
+    positional: false,
+    choices: @hashset.new(),
+    default: [],
+    help,
+  }
 }
 
 ///|
 pub fn Argument::new_named(
   short~ : Char? = None,
   nargs~ : Nargs = Any,
-  choices~ : ArrayView[String] = [],
+  choices~ : @hashset.T[String] = @hashset.new(),
   default~ : ArrayView[String] = [],
   help~ : String = ""
 ) -> Argument {
@@ -44,7 +51,7 @@ pub fn Argument::new_named(
 ///|
 pub fn Argument::new_positional(
   nargs~ : Nargs = Any,
-  choices~ : ArrayView[String] = [],
+  choices~ : @hashset.T[String] = @hashset.new(),
   default~ : ArrayView[String] = [],
   help~ : String = ""
 ) -> Argument {
@@ -160,6 +167,34 @@ pub fn Parser::parse[V : Value](
         )
       }
     }
+    for name, arg in args.iter2() {
+      if arg.positional && not(arg.short.is_empty()) {
+        raise InvalidSpec(
+          "Invalid argument, name=\{name}, short param is not for positional argument",
+        )
+      }
+      if arg.is_flag() {
+        if not(arg.choices.is_empty()) {
+          raise InvalidSpec(
+            "Invalid argument, name=\{name}, flag argument doesn't support choices=\{arg.choices}",
+          )
+        }
+        if arg.default.length() > 0 {
+          raise InvalidSpec(
+            "Invalid argument, name=\{name}, flag argument doesn't support default=\{arg.default}",
+          )
+        }
+      }
+      if not(arg.choices.is_empty()) {
+        for value in arg.default {
+          if not(arg.choices.contains(value)) {
+            raise InvalidSpec(
+              "Invalid argument, name=\{name}, default value=\{value} not in choices=\{arg.choices}",
+            )
+          }
+        }
+      }
+    }
   }
 
   fn update_args_length(name : String) -> Unit {
@@ -264,7 +299,7 @@ pub fn Parser::parse[V : Value](
       }
       // == Normal argument ==
       value_string if current_arg is Some((name, arg)) => {
-        if arg.choices.length() > 0 && not(arg.choices.contains(value_string)) {
+        if arg.choices.size() > 0 && not(arg.choices.contains(value_string)) {
           raise InvalidArgumentValue(
             "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{arg.choices}",
           )
