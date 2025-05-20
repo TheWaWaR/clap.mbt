@@ -171,7 +171,7 @@ pub fn Parser::new(
 pub(all) type! ParserError {
   InvalidArgumentName(String)
   InvalidSubCommandName(String)
-  InvalidPositionalAsName(String)
+  InvalidPositionalAsNamed(String)
   InvalidArgumentValue(String)
   InvalidArgumentValueLength(String)
   TooManyArgs(String)
@@ -203,7 +203,15 @@ pub fn Parser::parse[V : Value](
         )
       }
     }
+    let mut has_positional = false
     for name, arg in args.iter2() {
+      let positional = arg is Positional(_)
+      if positional && has_positional {
+        raise InvalidSpec(
+          "Invalid argument, only one positional argument is allowed, second=\{name}",
+        )
+      }
+      has_positional = has_positional || positional
       if arg.choices() is Some(choices) {
         if not(choices.is_empty()) {
           for value in arg.defaults() {
@@ -232,7 +240,7 @@ pub fn Parser::parse[V : Value](
       )
     }
     if arg is Positional(..) {
-      raise InvalidPositionalAsName(
+      raise InvalidPositionalAsNamed(
         "Invalid use positional argument as name argument: \{cli_arg} for \{cmd_name} ",
       )
     }
@@ -273,10 +281,8 @@ pub fn Parser::parse[V : Value](
           if positional {
             if has_subcmd {
               if length != 0 {
-                nargs_error = Some(
-                  InvalidArgumentValueLength(
-                    "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
-                  ),
+                raise InvalidArgumentValueLength(
+                  "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
                 )
               }
             } else {
@@ -312,7 +318,7 @@ pub fn Parser::parse[V : Value](
       [.. "-", .. rest] => {
         guard rest.char_length() == 1 else {
           raise InvalidArgumentName(
-            "Invalid argument name \{cli_arg} for \{cmd_name}",
+            "Invalid short argument name \{cli_arg} for \{cmd_name}",
           )
         }
         let short_char = rest.char_at(0)

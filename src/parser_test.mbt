@@ -117,6 +117,47 @@ test "parse simple subcmd" {
 }
 
 ///|
+test "parser short named argument" {
+  let parser = Parser::new(args={
+    "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+  })
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["-a", "abc"])
+  assert_eq!(help_message, None)
+  assert_eq!(value.name, "PROG")
+  assert_eq!(value.args.size(), 1)
+  assert_eq!(value.args.get("arg1").unwrap(), ["abc"])
+  assert_eq!(value.flags.is_empty(), true)
+  assert_eq!(value.positional_args.is_empty(), true)
+  assert_eq!(value.subcmd.is_empty(), true)
+}
+
+///|
+test "parse short flag argument" {
+  let parser = Parser::new(args={
+    "arg1": Arg::flag(short=Some('a'), help="Argument 1"),
+  })
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["-a"])
+  assert_eq!(help_message, None)
+  assert_eq!(value.name, "PROG")
+  assert_eq!(value.args.size(), 0)
+  assert_eq!(value.flags.get("arg1").unwrap(), true)
+  assert_eq!(value.positional_args.is_empty(), true)
+  assert_eq!(value.subcmd.is_empty(), true)
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["-h"]).unwrap()
+  let expected_help_message =
+    #|Usage: PROG [OPTIONS]
+    #|
+    #|Options:
+    #|  -a, --arg1  Argument 1
+    #|  -h, --help  Print help
+    #|
+  assert_eq!(help_message, expected_help_message)
+}
+
+///|
 struct CustomValue {
   mut debug : Bool
   mut arg1 : String
