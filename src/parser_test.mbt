@@ -1,17 +1,8 @@
 ///|
 test "parse simple named argument" {
-  let parser = Parser::{
-    prog: "PROG",
-    args: {
-      "arg1": Argument::new_named(
-        short=Some('a'),
-        nargs=Fixed(1),
-        help="Argument 1",
-      ),
-    },
-    subcmds: {},
-    description: "Test program",
-  }
+  let parser = Parser::new(args={
+    "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+  })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["--arg1", "abc"])
   assert_eq!(help_message, None)
@@ -35,14 +26,9 @@ test "parse simple named argument" {
 
 ///|
 test "parse simple positional argument" {
-  let parser = Parser::{
-    prog: "PROG",
-    args: {
-      "arg1": Argument::new_positional(nargs=Fixed(1), help="Argument 1"),
-    },
-    subcmds: {},
-    description: "Test program",
-  }
+  let parser = Parser::new(args={
+    "arg1": Arg::positional(nargs=Fixed(1), help="Argument 1"),
+  })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["abc"])
   assert_eq!(help_message, None)
@@ -67,12 +53,9 @@ test "parse simple positional argument" {
 
 ///|
 test "parse simple flag argument" {
-  let parser = Parser::{
-    prog: "PROG",
-    args: { "arg1": Argument::new_flag(short=Some('a'), help="Argument 1") },
-    subcmds: {},
-    description: "Test program",
-  }
+  let parser = Parser::new(args={
+    "arg1": Arg::flag(short=Some('a'), help="Argument 1"),
+  })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["--arg1"])
   assert_eq!(help_message, None)
@@ -95,18 +78,12 @@ test "parse simple flag argument" {
 
 ///|
 test "parse simple subcmd" {
-  let parser = Parser::{
-    prog: "PROG",
-    args: {},
-    subcmds: {
-      "subcmd1": SubCommand::{
-        args: { "arg1": Argument::new_flag(short=Some('a'), help="Argument 1") },
-        subcmds: {},
-        help: "Test subcommand",
-      },
-    },
-    description: "Test program",
-  }
+  let parser = Parser::new(subcmds={
+    "subcmd1": SubCommand::new(
+      args={ "arg1": Arg::flag(short=Some('a'), help="Argument 1") },
+      help="Test subcommand",
+    ),
+  })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["subcmd1", "--arg1"])
   assert_eq!(help_message, None)
@@ -220,28 +197,21 @@ impl Value for CustomValue with select_subcmd(self, name : String) -> CustomValu
 
 ///|
 test "parse custom value" {
-  let parser = Parser::{
-    prog: "PROG",
-    args: {
-      "debug": Argument::new_flag(short=Some('d'), help="Debug"),
-      "arg1": Argument::new_named(
-        short=Some('a'),
-        nargs=Fixed(1),
-        help="Argument 1",
+  let parser = Parser::new(
+    args={
+      "debug": Arg::flag(short=Some('d'), help="Debug"),
+      "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+    },
+    subcmds={
+      "subcmd1": SubCommand::new(
+        args={
+          "verbose": Arg::flag(short=Some('v'), help="Verbose"),
+          "arg2": Arg::positional(nargs=Fixed(3), help="Argument 2"),
+        },
+        help="Test subcommand",
       ),
     },
-    subcmds: {
-      "subcmd1": SubCommand::{
-        args: {
-          "verbose": Argument::new_flag(short=Some('v'), help="Verbose"),
-          "arg2": Argument::new_positional(nargs=Fixed(3), help="Argument 2"),
-        },
-        subcmds: {},
-        help: "Test subcommand",
-      },
-    },
-    description: "Test program",
-  }
+  )
   let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
   let help_message = parser.parse!(value, ["--debug", "--arg1", "value1"])
   assert_eq!(help_message, None)

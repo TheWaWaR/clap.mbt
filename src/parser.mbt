@@ -1,73 +1,99 @@
 ///|
-pub(all) struct Argument {
-  short : Char?
-  nargs : Nargs
-  positional : Bool
-  /// If this value is empty means not limit to those value
-  choices : @hashset.T[String]
-  default : ArrayView[String]
-  help : String
+pub(all) enum Arg {
+  Flag(short~ : Char?, store~ : Bool, help~ : String)
+  Named(
+    short~ : Char?,
+    nargs~ : Nargs,
+    choices~ : @hashset.T[String],
+    defaults~ : ArrayView[String],
+    help~ : String
+  )
+  Positional(
+    nargs~ : Nargs,
+    choices~ : @hashset.T[String],
+    defaults~ : ArrayView[String],
+    help~ : String
+  )
 }
 
 ///|
-pub fn Argument::new(
-  short~ : Char? = None,
-  nargs~ : Nargs = None(true),
-  positional~ : Bool = false,
-  choices~ : @hashset.T[String] = @hashset.new(),
-  default~ : ArrayView[String] = [],
-  help~ : String = ""
-) -> Argument {
-  { short, nargs, positional, choices, default, help }
-}
-
-///|
-pub fn Argument::new_flag(
-  short~ : Char? = None,
-  nargs~ : Nargs = None(true),
-  help~ : String = ""
-) -> Argument {
-  {
-    short,
-    nargs,
-    positional: false,
-    choices: @hashset.new(),
-    default: [],
-    help,
+pub fn Arg::help(self : Arg) -> String {
+  match self {
+    Flag(help~, ..) => help
+    Named(help~, ..) => help
+    Positional(help~, ..) => help
   }
 }
 
 ///|
-pub fn Argument::new_named(
+pub fn Arg::flag(
+  short~ : Char? = None,
+  store~ : Bool = true,
+  help~ : String = ""
+) -> Arg {
+  Flag(short~, store~, help~)
+}
+
+///|
+pub fn Arg::named(
   short~ : Char? = None,
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
-  default~ : ArrayView[String] = [],
+  defaults~ : ArrayView[String] = [],
   help~ : String = ""
-) -> Argument {
-  { short, nargs, positional: false, choices, default, help }
+) -> Arg {
+  Named(short~, nargs~, choices~, defaults~, help~)
 }
 
 ///|
-pub fn Argument::new_positional(
+pub fn Arg::positional(
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
-  default~ : ArrayView[String] = [],
+  defaults~ : ArrayView[String] = [],
   help~ : String = ""
-) -> Argument {
-  { short: None, nargs, positional: true, choices, default, help }
+) -> Arg {
+  Positional(nargs~, choices~, defaults~, help~)
 }
 
 ///|
-pub fn Argument::is_flag(self : Argument) -> Bool {
-  not(self.nargs.flag_value().is_empty())
+pub fn Arg::short(self : Arg) -> Char? {
+  match self {
+    Flag(short~, ..) => short
+    Named(short~, ..) => short
+    Positional(_) => None
+  }
+}
+
+///|
+pub fn Arg::nargs(self : Arg) -> Nargs? {
+  match self {
+    Flag(_) => None
+    Named(nargs~, ..) => Some(nargs)
+    Positional(nargs~, ..) => Some(nargs)
+  }
+}
+
+///|
+pub fn Arg::choices(self : Arg) -> @hashset.T[String]? {
+  match self {
+    Flag(_) => None
+    Named(choices~, ..) => Some(choices)
+    Positional(choices~, ..) => Some(choices)
+  }
+}
+
+///|
+pub fn Arg::defaults(self : Arg) -> ArrayView[String] {
+  match self {
+    Flag(_) => []
+    Named(defaults~, ..) => defaults
+    Positional(defaults~, ..) => defaults
+  }
 }
 
 ///|
 pub(all) enum Nargs {
   Any
-  /// n == 0 (flag argument, store: true/false, default: not(store))
-  None(Bool)
   /// n == 1
   One
   /// n == X
@@ -80,20 +106,10 @@ pub(all) enum Nargs {
   Range(UInt, UInt)
 } derive(Show, Eq)
 
-///|
-pub fn Nargs::flag_value(self : Nargs) -> Bool? {
-  match self {
-    Nargs::None(v) => Some(v)
-    Nargs::Fixed(0) => Some(true)
-    _ => None
-  }
-}
-
 ///| The length must greater than 0
 pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => true
-    None(_) => false
     One => length == 1
     Fixed(value) => length == value
     AtLeast(value) => length >= value
@@ -106,7 +122,6 @@ pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
 pub fn Nargs::is_exceeded(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => false
-    None(_) => true
     One => length > 1
     Fixed(value) => length > value
     AtLeast(_) => false
@@ -117,20 +132,39 @@ pub fn Nargs::is_exceeded(self : Nargs, length : UInt) -> Bool {
 
 ///|
 pub(all) struct SubCommand {
-  args : Map[String, Argument]
+  args : Map[String, Arg]
   /// If there is sub-commands position, positional arguments in currently level is forbiden.
   subcmds : Map[String, SubCommand]
   help : String
 }
 
 ///|
+pub fn SubCommand::new(
+  args~ : Map[String, Arg] = {},
+  subcmds~ : Map[String, SubCommand] = {},
+  help~ : String = ""
+) -> SubCommand {
+  { args, subcmds, help }
+}
+
+///|
 pub(all) struct Parser {
   /// The program name
   prog : String
-  args : Map[String, Argument]
+  args : Map[String, Arg]
   /// If there is sub-commands position, positional arguments in currently level is forbiden.
   subcmds : Map[String, SubCommand]
   description : String
+}
+
+///|
+pub fn Parser::new(
+  prog~ : String = "PROG",
+  args~ : Map[String, Arg] = {},
+  subcmds~ : Map[String, SubCommand] = {},
+  description~ : String = ""
+) -> Parser {
+  { prog, args, subcmds, description }
 }
 
 ///|
@@ -153,11 +187,13 @@ pub fn Parser::parse[V : Value](
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
   let mut args = self.args
-  let mut position_arg = args.iter().find_first(fn(pair) { pair.1.positional })
+  let mut position_arg = args
+    .iter()
+    .find_first(fn(pair) { pair.1 is Positional(..) })
   let mut subcmds = self.subcmds
   let args_length : @hashmap.T[String, UInt] = @hashmap.new()
   let mut current_value = value
-  let mut current_arg : (String, Argument)? = None
+  let mut current_arg : (String, Arg)? = None
   let mut nargs_error : ParserError? = None
   fn check_spec() -> Unit!ParserError {
     if position_arg is Some((name, _)) {
@@ -168,29 +204,14 @@ pub fn Parser::parse[V : Value](
       }
     }
     for name, arg in args.iter2() {
-      if arg.positional && not(arg.short.is_empty()) {
-        raise InvalidSpec(
-          "Invalid argument, name=\{name}, short param is not for positional argument",
-        )
-      }
-      if arg.is_flag() {
-        if not(arg.choices.is_empty()) {
-          raise InvalidSpec(
-            "Invalid argument, name=\{name}, flag argument doesn't support choices=\{arg.choices}",
-          )
-        }
-        if arg.default.length() > 0 {
-          raise InvalidSpec(
-            "Invalid argument, name=\{name}, flag argument doesn't support default=\{arg.default}",
-          )
-        }
-      }
-      if not(arg.choices.is_empty()) {
-        for value in arg.default {
-          if not(arg.choices.contains(value)) {
-            raise InvalidSpec(
-              "Invalid argument, name=\{name}, default value=\{value} not in choices=\{arg.choices}",
-            )
+      if arg.choices() is Some(choices) {
+        if not(choices.is_empty()) {
+          for value in arg.defaults() {
+            if not(choices.contains(value)) {
+              raise InvalidSpec(
+                "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
+              )
+            }
           }
         }
       }
@@ -203,20 +224,20 @@ pub fn Parser::parse[V : Value](
 
   fn handle_current_arg(
     cli_arg : String,
-    new_arg : (String, Argument)?
-  ) -> (String, Argument)?!ParserError {
+    new_arg : (String, Arg)?
+  ) -> (String, Arg)?!ParserError {
     guard new_arg is Some((name, arg)) else {
       raise InvalidArgumentName(
         "Invalid argument name \{cli_arg} for \{cmd_name}",
       )
     }
-    if arg.positional {
+    if arg is Positional(..) {
       raise InvalidPositionalAsName(
         "Invalid use positional argument as name argument: \{cli_arg} for \{cmd_name} ",
       )
     }
-    if arg.nargs.flag_value() is Some(flag_value) {
-      current_value.set_flag!(name, flag_value)
+    if arg is Flag(store~, ..) {
+      current_value.set_flag!(name, store)
       update_args_length(name)
       None
     } else {
@@ -227,22 +248,23 @@ pub fn Parser::parse[V : Value](
   // * set default value if missing
   // * check argument value length is valid
   fn complete_level(has_subcmd : Bool) -> Unit!ParserError {
-    for name, define_args in args.iter2() {
-      let positional = define_args.positional
+    for name, define_arg in args.iter2() {
+      let positional = define_arg is Positional(..)
       let length = args_length.get_or_default(name, 0)
-      if define_args.nargs.flag_value() is Some(store_value) {
+      if define_arg is Flag(store~, ..) {
         if length == 0 {
-          current_value.set_flag!(name, not(store_value))
+          current_value.set_flag!(name, not(store))
           update_args_length(name)
         }
       } else {
         if length == 0 && not(positional && has_subcmd) {
-          for default_value in define_args.default {
+          for default_value in define_arg.defaults() {
             current_value.add_value!(name, default_value, positional)
             update_args_length(name)
           }
         }
-        if not(define_args.nargs.is_valid_length(length)) {
+        let nargs = define_arg.nargs().unwrap()
+        if not(nargs.is_valid_length(length)) {
           if positional {
             if has_subcmd {
               if length != 0 {
@@ -255,14 +277,14 @@ pub fn Parser::parse[V : Value](
             } else {
               nargs_error = Some(
                 InvalidArgumentValueLength(
-                  "Invalid positional argument length=\{length}, limit: \{define_args.nargs}",
+                  "Invalid positional argument length=\{length}, limit: \{nargs}",
                 ),
               )
             }
           } else {
             nargs_error = Some(
               InvalidArgumentValueLength(
-                "Invalid name argument length=\{length}, limit: \{define_args.nargs}",
+                "Invalid name argument length=\{length}, limit: \{nargs}",
               ),
             )
           }
@@ -294,26 +316,29 @@ pub fn Parser::parse[V : Value](
         }
         let new_arg = args
           .iter()
-          .find_first(fn(pair) { pair.1.short == Some(short_char) })
+          .find_first(fn(pair) { pair.1.short() == Some(short_char) })
         current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       // == Normal argument ==
       value_string if current_arg is Some((name, arg)) => {
-        if arg.choices.size() > 0 && not(arg.choices.contains(value_string)) {
-          raise InvalidArgumentValue(
-            "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{arg.choices}",
-          )
+        if arg.choices() is Some(choices) {
+          if choices.size() > 0 && not(choices.contains(value_string)) {
+            raise InvalidArgumentValue(
+              "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{choices}",
+            )
+          }
         }
         current_value.add_value!(name, value_string, false)
         update_args_length(name)
         let new_length = args_length.get_or_default(name, 0)
-        if arg.nargs.is_exceeded(new_length) {
+        let nargs = arg.nargs().unwrap()
+        if nargs.is_exceeded(new_length) {
           raise TooManyArgs(
-            "Argument length limit: \{arg.nargs}, current length: \{new_length}",
+            "Argument length limit: \{nargs}, current length: \{new_length}",
           )
         }
         if (not(position_arg.is_empty()) || not(subcmds.is_empty())) &&
-          arg.nargs.is_exceeded(new_length + 1) {
+          nargs.is_exceeded(new_length + 1) {
           current_arg = None
         }
       }
@@ -324,7 +349,9 @@ pub fn Parser::parse[V : Value](
         cmd_name = value.to_string()
         subcmd_chains.push(cmd_name)
         args = subcmd.args
-        position_arg = args.iter().find_first(fn(pair) { pair.1.positional })
+        position_arg = args
+          .iter()
+          .find_first(fn(pair) { pair.1 is Positional(..) })
         subcmds = subcmd.subcmds
         args_length.clear()
         current_value = current_value.select_subcmd!(cmd_name)
@@ -373,19 +400,22 @@ pub fn Parser::gen_help_message(
     builder.write_char(' ')
     builder.write_string("<COMMAND>")
   }
-  let arg_pos_mark = if args.iter().find_first(fn(pair) { pair.1.positional })
+  let arg_pos_mark = if args
+    .iter()
+    .find_first(fn(pair) { pair.1 is Positional(..) })
     is Some((name, arg)) {
     let name_upper = name.to_upper()
-    let label = if arg.nargs is Nargs::Fixed(1) {
+    let nargs = arg.nargs().unwrap()
+    let label = if nargs is Nargs::Fixed(1) {
       "<\{name_upper}>"
-    } else if arg.nargs.is_exceeded(2) {
+    } else if nargs.is_exceeded(2) {
       "[\{name_upper}]"
     } else {
       "[\{name_upper}]..."
     }
     builder.write_char(' ')
     builder.write_string(label)
-    Some((label, arg.help))
+    Some((label, arg.help()))
   } else {
     None
   }
@@ -415,18 +445,18 @@ pub fn Parser::gen_help_message(
   builder.write_string("Options:\n")
   let options = []
   for name, arg in args.iter2() {
-    guard arg.positional == false else { continue }
-    let short_string = match arg.short {
+    guard not(arg is Positional(..)) else { continue }
+    let short_string = match arg.short() {
       Some(short) => "-\{short},"
       None => "   "
     }
-    let long_string = if arg.is_flag() {
+    let long_string = if arg is Flag(_) {
       "--\{name}"
     } else {
       "--\{name} <\{name.to_upper()}>"
     }
     let length = short_string.char_length() + long_string.char_length()
-    options.push((short_string, long_string, length, arg.help))
+    options.push((short_string, long_string, length, arg.help()))
   }
   options.push(("-h,", "--help", 9, "Print help"))
   let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()

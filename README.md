@@ -12,18 +12,12 @@ Command Line Argument Parser for MoonBit
 ## Usage
 Here is a simple example:
 ```moonbit
-let parser = Parser::{
-  prog: "PROG",
-  args: {},
-  subcmds: {
-    "subcmd1": SubCommand::{
-      args: { "arg1": Argument::new_flag(short=Some('a'), help="Argument 1") },
-      subcmds: {},
-      help: "Test subcommand",
-    },
-  },
-  description: "Test program",
-}
+let parser = Parser::new(subcmds={
+  "subcmd1": SubCommand::new(
+    args={ "arg1": Arg::flag(short=Some('a'), help="Argument 1") },
+    help="Test subcommand",
+  ),
+})
 let value = SimpleValue::new(parser.prog)
 let help_message = parser.parse!(value, ["subcmd1", "--arg1"])
 assert_eq!(help_message, None)
