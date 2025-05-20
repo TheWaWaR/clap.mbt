@@ -255,6 +255,11 @@ pub fn Parser::parse[V : Value](
         if length == 0 {
           current_value.set_flag!(name, not(store))
           update_args_length(name)
+        } else if length > 1 {
+          // TODO: support multiple flag in the future?
+          raise InvalidArgumentValueLength(
+            "Invalid flag argument length=\{length} > 1",
+          )
         }
       } else {
         if length == 0 && not(positional && has_subcmd) {
