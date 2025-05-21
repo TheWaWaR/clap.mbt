@@ -1,3 +1,12 @@
+// TODO: 
+//  * support global argument
+//  * support Arg::get_one/get_array/get_option/get_flag (user provider parser)
+//  * support Arg::conflicts_with(name) (implement use user provider parser closure)
+//  * support Arg::required_if/required_unless (implement use user provider parser closure)
+//  * support Arg::alias
+//  * support env variables
+//  * add more error tests
+//  * add more docs
 ///|
 pub(all) enum Arg {
   Flag(short~ : Char?, store~ : Bool, help~ : String)
