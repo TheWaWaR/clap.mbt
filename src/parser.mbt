@@ -9,12 +9,13 @@
 //  * add more docs
 ///|
 pub(all) enum Arg {
-  Flag(short~ : Char?, store~ : Bool, help~ : String)
+  Flag(short~ : Char?, store~ : Bool, global~ : Bool, help~ : String)
   Named(
     short~ : Char?,
     nargs~ : Nargs,
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
+    global~ : Bool,
     help~ : String
   )
   Positional(
@@ -26,21 +27,13 @@ pub(all) enum Arg {
 }
 
 ///|
-pub fn Arg::help(self : Arg) -> String {
-  match self {
-    Flag(help~, ..) => help
-    Named(help~, ..) => help
-    Positional(help~, ..) => help
-  }
-}
-
-///|
 pub fn Arg::flag(
   short~ : Char? = None,
   store~ : Bool = true,
+  global~ : Bool = false,
   help~ : String = ""
 ) -> Arg {
-  Flag(short~, store~, help~)
+  Flag(short~, store~, global~, help~)
 }
 
 ///|
@@ -49,9 +42,10 @@ pub fn Arg::named(
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
   defaults~ : ArrayView[String] = [],
+  global~ : Bool = false,
   help~ : String = ""
 ) -> Arg {
-  Named(short~, nargs~, choices~, defaults~, help~)
+  Named(short~, nargs~, choices~, defaults~, global~, help~)
 }
 
 ///|
@@ -97,6 +91,24 @@ pub fn Arg::defaults(self : Arg) -> ArrayView[String] {
     Flag(_) => []
     Named(defaults~, ..) => defaults
     Positional(defaults~, ..) => defaults
+  }
+}
+
+///|
+pub fn Arg::help(self : Arg) -> String {
+  match self {
+    Flag(help~, ..) => help
+    Named(help~, ..) => help
+    Positional(help~, ..) => help
+  }
+}
+
+///|
+pub fn Arg::is_global(self : Arg) -> Bool {
+  match self {
+    Named(global~, ..) => global
+    Flag(global~, ..) => global
+    Positional(_) => false
   }
 }
 
@@ -195,32 +207,36 @@ pub fn Parser::parse[V : Value](
 ) -> String?!ParserError {
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
+  let global_args : Map[String, Arg] = {}
   let mut args = self.args
-  let mut position_arg = args
-    .iter()
-    .find_first(fn(pair) { pair.1 is Positional(..) })
+  let mut positional_arg : (String, Arg)? = None
   let mut subcmds = self.subcmds
   let args_length : @hashmap.T[String, UInt] = @hashmap.new()
   let mut current_value = value
   let mut current_arg : (String, Arg)? = None
   let mut nargs_error : ParserError? = None
-  fn check_spec() -> Unit!ParserError {
-    if position_arg is Some((name, _)) {
-      if not(subcmds.is_empty()) {
-        raise InvalidSpec(
-          "Invalid argument specification: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
-        )
-      }
-    }
+  fn analysis_and_check_spec() -> Unit!ParserError {
     let mut has_positional = false
     for name, arg in args.iter2() {
       let positional = arg is Positional(_)
+      if positional {
+        if not(subcmds.is_empty()) {
+          raise InvalidSpec(
+            "Invalid argument specification: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
+          )
+        } else {
+          positional_arg = Some((name, arg))
+        }
+      }
       if positional && has_positional {
         raise InvalidSpec(
           "Invalid argument, only one positional argument is allowed, second=\{name}",
         )
       }
       has_positional = has_positional || positional
+      if arg.is_global() {
+        global_args[name] = arg
+      }
       if arg.choices() is Some(choices) {
         if not(choices.is_empty()) {
           for value in arg.defaults() {
@@ -265,10 +281,11 @@ pub fn Parser::parse[V : Value](
   // * set default value if missing
   // * check argument value length is valid
   fn complete_level(has_subcmd : Bool) -> Unit!ParserError {
-    for name, define_arg in args.iter2() {
-      let positional = define_arg is Positional(..)
+    // TODO: handle choices and defaults for global_args
+    for name, arg in args.iter2() {
+      let positional = arg is Positional(..)
       let length = args_length.get_or_default(name, 0)
-      if define_arg is Flag(store~, ..) {
+      if arg is Flag(store~, ..) {
         if length == 0 {
           current_value.set_flag!(name, not(store))
           update_args_length(name)
@@ -280,12 +297,12 @@ pub fn Parser::parse[V : Value](
         }
       } else {
         if length == 0 && not(positional && has_subcmd) {
-          for default_value in define_arg.defaults() {
+          for default_value in arg.defaults() {
             current_value.add_value!(name, default_value, positional)
             update_args_length(name)
           }
         }
-        let nargs = define_arg.nargs().unwrap()
+        let nargs = arg.nargs().unwrap()
         if not(nargs.is_valid_length(length)) {
           if positional {
             if has_subcmd {
@@ -313,15 +330,18 @@ pub fn Parser::parse[V : Value](
     }
   }
 
-  check_spec!()
+  analysis_and_check_spec!()
   for cli_arg in cli_args {
     match cli_arg {
       [.. "--", .. name] => {
         if name == "help" {
-          return Some(self.gen_help_message(subcmd_chains))
+          return Some(self.gen_help_message(subcmd_chains, global_args))
         }
         let name = name.to_string()
-        let new_arg = args.get(name).map(fn(arg) { (name, arg) })
+        let new_arg = args
+          .get(name)
+          .map_or_else(fn() { global_args.get(name) }, fn(x) { Some(x) })
+          .map(fn(arg) { (name, arg) })
         current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       [.. "-", .. rest] => {
@@ -332,11 +352,19 @@ pub fn Parser::parse[V : Value](
         }
         let short_char = rest.char_at(0)
         if short_char == 'h' {
-          return Some(self.gen_help_message(subcmd_chains))
+          return Some(self.gen_help_message(subcmd_chains, global_args))
         }
         let new_arg = args
           .iter()
           .find_first(fn(pair) { pair.1.short() == Some(short_char) })
+          .map_or_else(
+            fn() {
+              global_args
+              .iter()
+              .find_first(fn(pair) { pair.1.short() == Some(short_char) })
+            },
+            fn(x) { Some(x) },
+          )
         current_arg = handle_current_arg!(cli_arg, new_arg)
       }
       // == Normal argument ==
@@ -357,7 +385,7 @@ pub fn Parser::parse[V : Value](
             "Argument length limit: \{nargs}, current length: \{new_length}",
           )
         }
-        if (not(position_arg.is_empty()) || not(subcmds.is_empty())) &&
+        if (not(positional_arg.is_empty()) || not(subcmds.is_empty())) &&
           nargs.is_exceeded(new_length + 1) {
           current_arg = None
         }
@@ -369,17 +397,17 @@ pub fn Parser::parse[V : Value](
         cmd_name = value.to_string()
         subcmd_chains.push(cmd_name)
         args = subcmd.args
-        position_arg = args
+        positional_arg = args
           .iter()
           .find_first(fn(pair) { pair.1 is Positional(..) })
         subcmds = subcmd.subcmds
         args_length.clear()
         current_value = current_value.select_subcmd!(cmd_name)
         current_arg = None
-        check_spec!()
+        analysis_and_check_spec!()
       }
       // == Positional argument ==
-      value_string if position_arg is Some(arg) => {
+      value_string if positional_arg is Some(arg) => {
         let name = arg.0
         current_value.add_value!(name, value_string, true)
         update_args_length(name)
@@ -400,7 +428,8 @@ pub fn Parser::parse[V : Value](
 ///|
 pub fn Parser::gen_help_message(
   self : Parser,
-  subcmd_chains : Array[String]
+  subcmd_chains : Array[String],
+  global_args : Map[String, Arg]
 ) -> String {
   let builder = StringBuilder::new(size_hint=32)
   builder.write_string("Usage: ")
@@ -462,9 +491,26 @@ pub fn Parser::gen_help_message(
     builder.write_string("Arguments:\n")
     builder.write_string("  \{label}  \{help}\n\n")
   }
-  builder.write_string("Options:\n")
+  write_args(builder, "Options", args, {}, true)
+  if not(global_args.is_empty()) {
+    builder.write_char('\n')
+    write_args(builder, "Common Options", global_args, args, false)
+  }
+  builder.to_string()
+}
+
+///|
+fn write_args(
+  builder : StringBuilder,
+  title : String,
+  the_args : Map[String, Arg],
+  cull_args : Map[String, Arg],
+  include_help : Bool
+) -> Unit {
+  builder.write_string("\{title}:\n")
   let options = []
-  for name, arg in args.iter2() {
+  for name, arg in the_args.iter2() {
+    guard not(cull_args.contains(name)) else { continue }
     guard not(arg is Positional(..)) else { continue }
     let short_string = match arg.short() {
       Some(short) => "-\{short},"
@@ -478,7 +524,9 @@ pub fn Parser::gen_help_message(
     let length = short_string.char_length() + long_string.char_length()
     options.push((short_string, long_string, length, arg.help()))
   }
-  options.push(("-h,", "--help", 9, "Print help"))
+  if include_help {
+    options.push(("-h,", "--help", 9, "Print help"))
+  }
   let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()
   for item in options {
     let (short_string, long_string, length, help) = item
@@ -489,7 +537,6 @@ pub fn Parser::gen_help_message(
     builder.write_string(help)
     builder.write_char('\n')
   }
-  builder.to_string()
 }
 
 ///|
