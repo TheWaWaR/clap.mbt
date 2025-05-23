@@ -1,7 +1,7 @@
 ///|
 test "parse simple named argument" {
   let parser = Parser::new(args={
-    "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+    "arg1": Arg::named(short='a', nargs=Fixed(1), help="Argument 1"),
   })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["--arg1", "abc"])
@@ -54,7 +54,7 @@ test "parse simple positional argument" {
 ///|
 test "parse simple flag argument" {
   let parser = Parser::new(args={
-    "arg1": Arg::flag(short=Some('a'), help="Argument 1"),
+    "arg1": Arg::flag(short='a', help="Argument 1"),
   })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["--arg1"])
@@ -80,7 +80,7 @@ test "parse simple flag argument" {
 test "parse simple subcmd" {
   let parser = Parser::new(subcmds={
     "subcmd1": SubCommand::new(
-      args={ "arg1": Arg::flag(short=Some('a'), help="Argument 1") },
+      args={ "arg1": Arg::flag(short='a', help="Argument 1") },
       help="Test subcommand",
     ),
   })
@@ -119,7 +119,7 @@ test "parse simple subcmd" {
 ///|
 test "parser short named argument" {
   let parser = Parser::new(args={
-    "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+    "arg1": Arg::named(short='a', nargs=Fixed(1), help="Argument 1"),
   })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["-a", "abc"])
@@ -135,7 +135,7 @@ test "parser short named argument" {
 ///|
 test "parse short flag argument" {
   let parser = Parser::new(args={
-    "arg1": Arg::flag(short=Some('a'), help="Argument 1"),
+    "arg1": Arg::flag(short='a', help="Argument 1"),
   })
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["-a"])
@@ -240,13 +240,13 @@ impl Value for CustomValue with select_subcmd(self, name : String) -> CustomValu
 test "parse custom value" {
   let parser = Parser::new(
     args={
-      "debug": Arg::flag(short=Some('d'), help="Debug"),
-      "arg1": Arg::named(short=Some('a'), nargs=Fixed(1), help="Argument 1"),
+      "debug": Arg::flag(short='d', help="Debug"),
+      "arg1": Arg::named(short='a', nargs=Fixed(1), help="Argument 1"),
     },
     subcmds={
       "subcmd1": SubCommand::new(
         args={
-          "verbose": Arg::flag(short=Some('v'), help="Verbose"),
+          "verbose": Arg::flag(short='v', help="Verbose"),
           "arg2": Arg::positional(nargs=Fixed(3), help="Argument 2"),
         },
         help="Test subcommand",

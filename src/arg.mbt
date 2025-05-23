@@ -1,8 +1,9 @@
+let null_short: Char = '\u0000'
 ///|
 pub(all) enum Arg {
-  Flag(short~ : Char?, store~ : Bool, global~ : Bool, help~ : String)
+  Flag(short~ : Char, store~ : Bool, global~ : Bool, help~ : String)
   Named(
-    short~ : Char?,
+    short~ : Char,
     nargs~ : Nargs,
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
@@ -19,7 +20,7 @@ pub(all) enum Arg {
 
 ///|
 pub fn Arg::flag(
-  short~ : Char? = None,
+  short~ : Char = null_short,
   store~ : Bool = true,
   global~ : Bool = false,
   help~ : String = ""
@@ -29,7 +30,7 @@ pub fn Arg::flag(
 
 ///|
 pub fn Arg::named(
-  short~ : Char? = None,
+  short~ : Char = null_short,
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
   defaults~ : ArrayView[String] = [],
@@ -52,8 +53,8 @@ pub fn Arg::positional(
 ///|
 pub fn Arg::short(self : Arg) -> Char? {
   match self {
-    Flag(short~, ..) => short
-    Named(short~, ..) => short
+    Flag(short~, ..) => Some(short)
+    Named(short~, ..) => Some(short)
     Positional(_) => None
   }
 }

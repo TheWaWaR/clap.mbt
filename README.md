@@ -15,7 +15,7 @@ Here is a simple example:
 ```moonbit
 let parser = Parser::new(subcmds={
   "subcmd1": SubCommand::new(
-    args={ "arg1": Arg::flag(short=Some('a'), help="Argument 1") },
+    args={ "arg1": Arg::flag(short='a', help="Argument 1") },
     help="Test subcommand",
   ),
 })

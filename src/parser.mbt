@@ -77,7 +77,7 @@ pub fn[V : Value] Parser::parse(
       if positional {
         if not(subcmds.is_empty()) {
           raise InvalidSpec(
-            "Invalid argument specification: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
+            "Invalid argument spec: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
           )
         } else {
           positional_arg = Some((name, arg))
@@ -91,6 +91,15 @@ pub fn[V : Value] Parser::parse(
       has_positional = has_positional || positional
       if arg.is_global() {
         global_args[name] = arg
+      }
+      if arg.short() is Some(short_char) {
+        if short_char != null_short &&
+          not(short_char.is_ascii_alphabetic()) &&
+          not(short_char.is_ascii_digit()) {
+          raise InvalidSpec(
+            "Invalid argument spec: parent-cmd=\{cmd_name}, name=\{name}, short=\{short_char}, only 0-9,a-z,A-Z is allowed",
+          )
+        }
       }
       if arg.choices() is Some(choices) {
         if not(choices.is_empty()) {
