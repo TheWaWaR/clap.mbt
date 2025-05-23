@@ -1,21 +1,28 @@
-let null_short: Char = '\u0000'
+///|
+let null_short : Char = '\u0000'
+
 ///|
 pub(all) enum Arg {
-  Flag(short~ : Char, store~ : Bool, global~ : Bool, help~ : String)
+  Flag(short~ : Char, store~ : Bool, global~ : Bool, common~ : CommonFields)
   Named(
     short~ : Char,
     nargs~ : Nargs,
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
     global~ : Bool,
-    help~ : String
+    common~ : CommonFields
   )
   Positional(
     nargs~ : Nargs,
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
-    help~ : String
+    common~ : CommonFields
   )
+}
+
+///|
+pub struct CommonFields {
+  help : String
 }
 
 ///|
@@ -25,7 +32,8 @@ pub fn Arg::flag(
   global~ : Bool = false,
   help~ : String = ""
 ) -> Arg {
-  Flag(short~, store~, global~, help~)
+  let common = { help, }
+  Flag(short~, store~, global~, common~)
 }
 
 ///|
@@ -37,7 +45,8 @@ pub fn Arg::named(
   global~ : Bool = false,
   help~ : String = ""
 ) -> Arg {
-  Named(short~, nargs~, choices~, defaults~, global~, help~)
+  let common = { help, }
+  Named(short~, nargs~, choices~, defaults~, global~, common~)
 }
 
 ///|
@@ -47,7 +56,8 @@ pub fn Arg::positional(
   defaults~ : ArrayView[String] = [],
   help~ : String = ""
 ) -> Arg {
-  Positional(nargs~, choices~, defaults~, help~)
+  let common = { help, }
+  Positional(nargs~, choices~, defaults~, common~)
 }
 
 ///|
@@ -87,11 +97,11 @@ pub fn Arg::defaults(self : Arg) -> ArrayView[String] {
 }
 
 ///|
-pub fn Arg::help(self : Arg) -> String {
+pub fn Arg::common(self : Arg) -> CommonFields {
   match self {
-    Flag(help~, ..) => help
-    Named(help~, ..) => help
-    Positional(help~, ..) => help
+    Flag(common~, ..) => common
+    Named(common~, ..) => common
+    Positional(common~, ..) => common
   }
 }
 

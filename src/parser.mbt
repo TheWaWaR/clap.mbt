@@ -338,7 +338,7 @@ pub fn Parser::gen_help_message(
     }
     builder.write_char(' ')
     builder.write_string(label)
-    Some((label, arg.help()))
+    Some((label, arg.common().help))
   } else {
     None
   }
@@ -396,7 +396,7 @@ fn write_args(
       "--\{name} <\{name.to_upper()}>"
     }
     let length = short_string.char_length() + long_string.char_length()
-    options.push((short_string, long_string, length, arg.help()))
+    options.push((short_string, long_string, length, arg.common().help))
   }
   if include_help {
     options.push(("-h,", "--help", 9, "Print help"))
