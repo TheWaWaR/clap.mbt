@@ -275,11 +275,11 @@ test "parse custom value" {
   assert_eq!(help_message, expected_help_message)
   let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
   let help_message = parser.parse!(value, [
-    "--debug", "--arg1", "value1", "subcmd1", "--verbose", "33", "44", "55",
+    "subcmd1", "--verbose", "33", "44", "55",
   ])
   assert_eq!(help_message, None)
-  assert_eq!(value.debug, true)
-  assert_eq!(value.arg1, "value1")
+  assert_eq!(value.debug, false)
+  assert_eq!(value.arg1, "")
   assert_eq!(
     value.subcmd.unwrap(),
     SubCommand1(verbose=true, positional_args=[33, 44, 55]),
@@ -295,6 +295,56 @@ test "parse custom value" {
     #|Options:
     #|  -v, --verbose  Verbose
     #|  -h, --help     Print help
+    #|
+  assert_eq!(help_message, expected_help_message)
+}
+
+///|
+test "simple global argument" {
+  let parser = Parser::new(
+    args={
+      "debug": Arg::flag(short='d', global=true, help="Debug"),
+      "arg1": Arg::named(
+        short='a',
+        nargs=Fixed(1),
+        global=true,
+        help="Argument 1",
+      ),
+    },
+    subcmds={
+      "subcmd1": SubCommand::new(
+        args={
+          "verbose": Arg::flag(short='v', help="Verbose"),
+          "arg2": Arg::positional(nargs=Fixed(3), help="Argument 2"),
+        },
+        help="Test subcommand",
+      ),
+    },
+  )
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, [
+    "subcmd1", "--debug", "--arg1", "value1", "33", "44", "55",
+  ])
+  assert_eq!(help_message, None)
+  let subcmd1 = value.subcmd.unwrap()
+  assert_eq!(subcmd1.flags.get("debug").unwrap(), true)
+  assert_eq!(subcmd1.args.get("arg1").unwrap(), ["value1"])
+  assert_eq!(subcmd1.positional_args, ["33", "44", "55"])
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["subcmd1", "--help"]).unwrap()
+  let expected_help_message =
+    #|Usage: PROG subcmd1 [OPTIONS] [ARG2]...
+    #|
+    #|Arguments:
+    #|  [ARG2]...  Argument 2
+    #|
+    #|Options:
+    #|  -v, --verbose  Verbose
+    #|  -h, --help     Print help
+    #|
+    #|Common Options:
+    #|  -d, --debug        Debug
+    #|  -a, --arg1 <ARG1>  Argument 1
     #|
   assert_eq!(help_message, expected_help_message)
 }

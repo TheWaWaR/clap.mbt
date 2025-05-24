@@ -96,10 +96,6 @@ pub fn[V : Value] Parser::parse(
     }
   }
 
-  fn update_args_length(name : String) -> Unit {
-    args_length.set(name, args_length.get_or_default(name, 0) + 1)
-  }
-
   fn handle_current_arg(
     cli_arg : String,
     new_arg : (String, Arg)?
@@ -116,79 +112,10 @@ pub fn[V : Value] Parser::parse(
     }
     if arg is Flag(store~, ..) {
       current_value.set_flag!(name, store)
-      update_args_length(name)
+      update_args_length(args_length, name)
       None
     } else {
       Some((name, arg))
-    }
-  }
-
-  // * set default value if missing
-  // * check argument value length is valid
-  fn complete_level(final_subcmd : Bool) -> Unit!ParserError {
-    let all_args = if final_subcmd {
-      [(args, false), (global_args, true)]
-    } else {
-      [(args, false)]
-    }
-    for item in all_args {
-      let (the_args, is_global) = item
-      for name, arg in the_args.iter2() {
-        if is_global && args.contains(name) {
-          continue
-        }
-        let positional = arg is Positional(..)
-        let length = args_length.get_or_default(name, 0)
-        if arg is Flag(store~, ..) {
-          if length == 0 {
-            current_value.set_flag!(name, not(store))
-            update_args_length(name)
-          } else if length > 1 {
-            // TODO: support multiple flag in the future?
-            raise InvalidArgumentValueLength(
-              "Invalid flag argument length=\{length} > 1",
-            )
-          }
-        } else {
-          // Set defaults for:
-          //   * final level positional argument
-          //   * non-final level named argument
-          if length == 0 && not(positional && not(final_subcmd)) {
-            for default_value in get_defaults(arg, env_vars) {
-              current_value.add_value!(
-                name,
-                default_value.to_string(),
-                positional,
-              )
-              update_args_length(name)
-            }
-          }
-          let nargs = arg.nargs().unwrap()
-          if not(nargs.is_valid_length(length)) {
-            if positional {
-              if not(final_subcmd) {
-                if length != 0 {
-                  raise InvalidArgumentValueLength(
-                    "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
-                  )
-                }
-              } else {
-                nargs_error = Some(
-                  InvalidArgumentValueLength(
-                    "Invalid positional argument length=\{length}, limit: \{nargs}",
-                  ),
-                )
-              }
-            } else {
-              nargs_error = Some(
-                InvalidArgumentValueLength(
-                  "Invalid name argument length=\{length}, limit: \{nargs}",
-                ),
-              )
-            }
-          }
-        }
-      }
     }
   }
 
@@ -239,7 +166,7 @@ pub fn[V : Value] Parser::parse(
           }
         }
         current_value.add_value!(name, value_string, false)
-        update_args_length(name)
+        update_args_length(args_length, name)
         let new_length = args_length.get_or_default(name, 0)
         let nargs = arg.nargs().unwrap()
         if nargs.is_exceeded(new_length) {
@@ -254,7 +181,12 @@ pub fn[V : Value] Parser::parse(
       }
       // == SubCommand ==
       value if subcmds.get(value) is Some(subcmd) => {
-        complete_level!(false)
+        if complete_level!(
+            args, global_args, args_length, current_value, env_vars, false,
+          )
+          is Some(err) {
+          nargs_error = Some(err)
+        }
         // switch to selected sub-command
         cmd_name = value.to_string()
         subcmd_chains.push(cmd_name)
@@ -272,7 +204,7 @@ pub fn[V : Value] Parser::parse(
       value_string if positional_arg is Some(arg) => {
         let name = arg.0
         current_value.add_value!(name, value_string, true)
-        update_args_length(name)
+        update_args_length(args_length, name)
       }
       value =>
         raise InvalidSubCommandName(
@@ -280,7 +212,12 @@ pub fn[V : Value] Parser::parse(
         )
     }
   }
-  complete_level!(true)
+  if complete_level!(
+      args, global_args, args_length, current_value, env_vars, true,
+    )
+    is Some(err) {
+    nargs_error = Some(err)
+  }
   if nargs_error is Some(err) {
     raise err
   }
@@ -300,4 +237,97 @@ fn get_defaults(
   } else {
     arg.defaults().iter().map(fn(s) { s.view() })
   }
+}
+
+///|
+fn update_args_length(
+  args_length : @hashmap.T[String, UInt],
+  name : String
+) -> Unit {
+  args_length.set(name, args_length.get_or_default(name, 0) + 1)
+}
+
+// * set default value if missing
+// * check argument value length is valid
+///|
+fn[V : Value] complete_level(
+  args : Map[String, Arg],
+  global_args : Map[String, Arg],
+  args_length : @hashmap.T[String, UInt],
+  current_value : V,
+  env_vars : Map[String, String],
+  final_subcmd : Bool
+) -> ParserError?!ParserError {
+  let mut nargs_error : ParserError? = None
+  let all_args = if final_subcmd {
+    [(args, false), (global_args, true)]
+  } else {
+    [(args, false)]
+  }
+  for item in all_args {
+    let (the_args, is_global) = item
+    for name, arg in the_args.iter2() {
+      if is_global && args.contains(name) {
+        continue
+      }
+      let positional = arg is Positional(..)
+      let length = args_length.get_or_default(name, 0)
+      // flag and named argument can only presented in final subcommand
+      if (arg is Flag(_) || arg is Named(_)) && length > 0 && not(final_subcmd) {
+        raise InvalidArgumentValueLength(
+          "Invalid argument: \{name}, flag/named argument can only presented in final level",
+        )
+      }
+      if arg is Flag(store~, ..) {
+        if length == 0 {
+          current_value.set_flag!(name, not(store))
+          update_args_length(args_length, name)
+        } else if length > 1 {
+          // TODO: support multiple flag in the future?
+          raise InvalidArgumentValueLength(
+            "Invalid flag argument length=\{length} > 1",
+          )
+        }
+      } else {
+        // Set defaults for:
+        //   * final level positional argument
+        //   * non-final level named argument
+        if length == 0 && not(positional && not(final_subcmd)) {
+          for default_value in get_defaults(arg, env_vars) {
+            current_value.add_value!(
+              name,
+              default_value.to_string(),
+              positional,
+            )
+            update_args_length(args_length, name)
+          }
+        }
+        let nargs = arg.nargs().unwrap()
+        if not(nargs.is_valid_length(length)) {
+          if positional {
+            if not(final_subcmd) {
+              if length != 0 {
+                raise InvalidArgumentValueLength(
+                  "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
+                )
+              }
+            } else {
+              nargs_error = Some(
+                InvalidArgumentValueLength(
+                  "Invalid positional argument length=\{length}, limit: \{nargs}",
+                ),
+              )
+            }
+          } else if final_subcmd {
+            nargs_error = Some(
+              InvalidArgumentValueLength(
+                "Invalid name argument length=\{length}, limit: \{nargs}, final: \{final_subcmd}",
+              ),
+            )
+          }
+        }
+      }
+    }
+  }
+  nargs_error
 }
