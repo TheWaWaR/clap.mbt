@@ -271,7 +271,7 @@ fn[V : Value] complete_level(
         continue
       }
       let positional = arg is Positional(..)
-      let length = args_length.get_or_default(name, 0)
+      let mut length = args_length.get_or_default(name, 0)
       // flag and named argument can only presented in final subcommand
       if (arg is Flag(_) || arg is Named(_)) && length > 0 && not(final_subcmd) {
         raise InvalidArgumentValueLength(
@@ -300,6 +300,7 @@ fn[V : Value] complete_level(
               positional,
             )
             update_args_length(args_length, name)
+            length += 1
           }
         }
         let nargs = arg.nargs().unwrap()

@@ -348,3 +348,34 @@ test "simple global argument" {
     #|
   assert_eq!(help_message, expected_help_message)
 }
+
+///|
+test "simple env vars" {
+  let parser = Parser::new(args={
+    "arg1": Arg::named(
+      short='a',
+      nargs=AtMost(2),
+      env_var="ENV_ARG1",
+      help="Argument 1",
+    ),
+  })
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, [], env_vars={ "ENV_ARG1": "ijk,xyz" })
+  assert_eq!(help_message, None)
+  assert_eq!(value.name, "PROG")
+  assert_eq!(value.args.size(), 1)
+  assert_eq!(value.args.get("arg1").unwrap(), ["ijk", "xyz"])
+  assert_eq!(value.flags.is_empty(), true)
+  assert_eq!(value.positional_args.is_empty(), true)
+  assert_eq!(value.subcmd.is_empty(), true)
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["--help"]).unwrap()
+  let expected_help_message =
+    #|Usage: PROG [OPTIONS]
+    #|
+    #|Options:
+    #|  -a, --arg1 <ARG1>  Argument 1
+    #|  -h, --help         Print help
+    #|
+  assert_eq!(help_message, expected_help_message)
+}
