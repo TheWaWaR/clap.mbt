@@ -330,6 +330,11 @@ test "simple global argument" {
   assert_eq!(subcmd1.flags.get("debug").unwrap(), true)
   assert_eq!(subcmd1.args.get("arg1").unwrap(), ["value1"])
   assert_eq!(subcmd1.positional_args, ["33", "44", "55"])
+  assert_eq!(subcmd1.get_flag("debug").unwrap(), true)
+  assert_eq!(subcmd1.get_one!("arg1"), "value1")
+  assert_eq!(subcmd1.get_option!("arg1").unwrap(), "value1")
+  assert_eq!(subcmd1.get_array!("arg1"), ["value1"])
+  assert_eq!(subcmd1.get_positional!(), [(33 : UInt), 44, 55])
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse!(value, ["subcmd1", "--help"]).unwrap()
   let expected_help_message =

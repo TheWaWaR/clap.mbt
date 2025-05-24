@@ -1,5 +1,4 @@
 // TODO: 
-//  * support Arg::get_one/get_array/get_option/get_flag (user provider parser)
 //  * support Arg::conflicts_with(name) (implement use user provider parser closure)
 //  * support Arg::required_if/required_unless (implement use user provider parser closure)
 //  * add more error tests
