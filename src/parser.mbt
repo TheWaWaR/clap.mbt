@@ -2,27 +2,9 @@
 //  * support Arg::get_one/get_array/get_option/get_flag (user provider parser)
 //  * support Arg::conflicts_with(name) (implement use user provider parser closure)
 //  * support Arg::required_if/required_unless (implement use user provider parser closure)
-//  * support value delimiter
 //  * support env variables as default value
 //  * add more error tests
 //  * add more docs
-///|
-pub(all) struct SubCommand {
-  args : Map[String, Arg]
-  /// If there is sub-commands position, positional arguments in currently level is forbiden.
-  subcmds : Map[String, SubCommand]
-  help : String
-}
-
-///|
-pub fn SubCommand::new(
-  args~ : Map[String, Arg] = {},
-  subcmds~ : Map[String, SubCommand] = {},
-  help~ : String = ""
-) -> SubCommand {
-  { args, subcmds, help }
-}
-
 ///|
 pub(all) struct Parser {
   /// The program name
@@ -58,7 +40,8 @@ pub(all) type! ParserError {
 pub fn[V : Value] Parser::parse(
   self : Parser,
   value : V,
-  cli_args : ArrayView[String]
+  cli_args : ArrayView[String],
+  env_vars~ : Map[String, String] = {}
 ) -> String?!ParserError {
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
@@ -101,14 +84,12 @@ pub fn[V : Value] Parser::parse(
           )
         }
       }
-      if arg.choices() is Some(choices) {
-        if not(choices.is_empty()) {
-          for value in arg.defaults() {
-            if not(choices.contains(value)) {
-              raise InvalidSpec(
-                "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
-              )
-            }
+      if arg.choices() is Some(choices) && not(choices.is_empty()) {
+        for value in get_defaults(arg, env_vars) {
+          if not(choices.contains(value.to_string())) {
+            raise InvalidSpec(
+              "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
+            )
           }
         }
       }
@@ -169,9 +150,16 @@ pub fn[V : Value] Parser::parse(
             )
           }
         } else {
+          // Set defaults for:
+          //   * final level positional argument
+          //   * non-final level named argument
           if length == 0 && not(positional && not(final_subcmd)) {
-            for default_value in arg.defaults() {
-              current_value.add_value!(name, default_value, positional)
+            for default_value in get_defaults(arg, env_vars) {
+              current_value.add_value!(
+                name,
+                default_value.to_string(),
+                positional,
+              )
               update_args_length(name)
             }
           }
@@ -300,202 +288,16 @@ pub fn[V : Value] Parser::parse(
 }
 
 ///|
-pub fn Parser::gen_help_message(
-  self : Parser,
-  subcmd_chains : Array[String],
-  global_args : Map[String, Arg]
-) -> String {
-  let builder = StringBuilder::new(size_hint=32)
-  builder.write_string("Usage: ")
-  let mut args = self.args
-  let mut subcmds = self.subcmds
-  builder.write_string(subcmd_chains[0])
-  builder.write_char(' ')
-  for subcmd_name in subcmd_chains[1:] {
-    builder.write_string(subcmd_name)
-    builder.write_char(' ')
-    let subcmd = subcmds.get(subcmd_name).unwrap()
-    args = subcmd.args
-    subcmds = subcmd.subcmds
-  }
-  builder.write_string("[OPTIONS]")
-  if not(subcmds.is_empty()) {
-    builder.write_char(' ')
-    builder.write_string("<COMMAND>")
-  }
-  let arg_pos_mark = if args
-    .iter()
-    .find_first(fn(pair) { pair.1 is Positional(..) })
-    is Some((name, arg)) {
-    let name_upper = name.to_upper()
-    let nargs = arg.nargs().unwrap()
-    let label = if nargs is Nargs::Fixed(1) {
-      "<\{name_upper}>"
-    } else if nargs.is_exceeded(2) {
-      "[\{name_upper}]"
-    } else {
-      "[\{name_upper}]..."
-    }
-    builder.write_char(' ')
-    builder.write_string(label)
-    Some((label, arg.common().help))
+fn get_defaults(
+  arg : Arg,
+  env_vars : Map[String, String]
+) -> Iter[@string.StringView] {
+  let common = arg.common()
+  if not(common.env_var.is_empty()) &&
+    env_vars.get(common.env_var) is Some(env_value) {
+    let value_delimiter = arg.value_delimiter().unwrap()
+    env_value.split(value_delimiter)
   } else {
-    None
-  }
-  builder.write_char('\n')
-  builder.write_char('\n')
-  if not(subcmds.is_empty()) {
-    builder.write_string("Commands:\n")
-    let max_length = subcmds
-      .iter()
-      .map(fn(pair) { pair.0.char_length() })
-      .maximum()
-      .unwrap()
-    for name, subcmd in subcmds.iter2() {
-      builder.write_string("  \{name}  ")
-      for _ in 0..<(max_length - name.char_length()) {
-        builder.write_char(' ')
-      }
-      builder.write_string(subcmd.help)
-      builder.write_char('\n')
-    }
-    builder.write_char('\n')
-  }
-  if arg_pos_mark is Some((label, help)) {
-    builder.write_string("Arguments:\n")
-    builder.write_string("  \{label}  \{help}\n\n")
-  }
-  write_args(builder, "Options", args, {}, true)
-  if not(global_args.is_empty()) {
-    builder.write_char('\n')
-    write_args(builder, "Common Options", global_args, args, false)
-  }
-  builder.to_string()
-}
-
-///|
-fn write_args(
-  builder : StringBuilder,
-  title : String,
-  the_args : Map[String, Arg],
-  cull_args : Map[String, Arg],
-  include_help : Bool
-) -> Unit {
-  builder.write_string("\{title}:\n")
-  let options = []
-  for name, arg in the_args.iter2() {
-    guard not(cull_args.contains(name)) else { continue }
-    guard not(arg is Positional(..)) else { continue }
-    let short_string = match arg.short() {
-      Some(short) => "-\{short},"
-      None => "   "
-    }
-    let long_string = if arg is Flag(_) {
-      "--\{name}"
-    } else {
-      "--\{name} <\{name.to_upper()}>"
-    }
-    let length = short_string.char_length() + long_string.char_length()
-    options.push((short_string, long_string, length, arg.common().help))
-  }
-  if include_help {
-    options.push(("-h,", "--help", 9, "Print help"))
-  }
-  let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()
-  for item in options {
-    let (short_string, long_string, length, help) = item
-    builder.write_string("  \{short_string} \{long_string}  ")
-    for _ in 0..<(max_length - length) {
-      builder.write_char(' ')
-    }
-    builder.write_string(help)
-    builder.write_char('\n')
-  }
-}
-
-///|
-pub(all) struct SimpleValue {
-  name : String
-  args : @hashmap.T[String, Array[String]]
-  flags : @hashmap.T[String, Bool]
-  positional_args : Array[String]
-  mut subcmd : SimpleValue?
-} derive(Show, Eq)
-
-///|
-pub fn SimpleValue::new(name : String) -> SimpleValue {
-  SimpleValue::{
-    name,
-    args: @hashmap.new(),
-    flags: @hashmap.new(),
-    positional_args: [],
-    subcmd: None,
-  }
-}
-
-///|
-pub(open) trait Value {
-  set_flag(Self, name : String, value : Bool) -> Unit!ParserError = _
-  add_value(Self, name : String, value : String, positional : Bool) ->
-       Unit!ParserError = _
-  select_subcmd(Self, subcmd : String) -> Self!ParserError = _
-}
-
-///|
-impl Value with set_flag(_self, name : String, _value : Bool) -> Unit!ParserError {
-  raise ParserError::InvalidArgumentName(
-    "Invalid argument name \{name}, unimplemented",
-  )
-}
-
-///|
-impl Value with add_value(
-  _self,
-  name : String,
-  value : String,
-  _positional : Bool
-) -> Unit!ParserError {
-  raise ParserError::InvalidArgumentValue(
-    "Invalid argument name=\{name}, value=\{value}, unimplemented",
-  )
-}
-
-///|
-impl Value with select_subcmd(_self, subcmd : String) -> Self!ParserError {
-  raise ParserError::InvalidSubCommandName(
-    "Invalid sub-command \{subcmd}, unimplemented",
-  )
-}
-
-///|
-pub impl Value for SimpleValue with set_flag(self, name : String, value : Bool) -> Unit!ParserError {
-  self.flags.set(name, value)
-}
-
-///|
-pub impl Value for SimpleValue with add_value(
-  self,
-  name : String,
-  value : String,
-  positional : Bool
-) -> Unit!ParserError {
-  if positional {
-    self.positional_args.push(value)
-  } else if self.args.get(name) is Some(values) {
-    values.push(value)
-  } else {
-    self.args.set(name, [value])
-  }
-}
-
-///|
-pub impl Value for SimpleValue with select_subcmd(self, subcmd : String) -> SimpleValue!ParserError {
-  match self.subcmd {
-    Some(subcmd_value) => subcmd_value
-    None => {
-      let subcmd_value = SimpleValue::new(subcmd)
-      self.subcmd = Some(subcmd_value)
-      subcmd_value
-    }
+    arg.defaults().iter().map(fn(s) { s.view() })
   }
 }

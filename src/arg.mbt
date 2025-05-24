@@ -10,18 +10,21 @@ pub(all) enum Arg {
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
     global~ : Bool,
+    value_delimiter~ : String,
     common~ : CommonFields
   )
   Positional(
     nargs~ : Nargs,
     choices~ : @hashset.T[String],
     defaults~ : ArrayView[String],
+    value_delimiter~ : String,
     common~ : CommonFields
   )
 }
 
 ///|
 pub struct CommonFields {
+  env_var : String
   help : String
 }
 
@@ -30,9 +33,10 @@ pub fn Arg::flag(
   short~ : Char = null_short,
   store~ : Bool = true,
   global~ : Bool = false,
+  env_var~ : String = "",
   help~ : String = ""
 ) -> Arg {
-  let common = { help, }
+  let common = { help, env_var }
   Flag(short~, store~, global~, common~)
 }
 
@@ -43,10 +47,12 @@ pub fn Arg::named(
   choices~ : @hashset.T[String] = @hashset.new(),
   defaults~ : ArrayView[String] = [],
   global~ : Bool = false,
+  value_delimiter~ : String = ",",
+  env_var~ : String = "",
   help~ : String = ""
 ) -> Arg {
-  let common = { help, }
-  Named(short~, nargs~, choices~, defaults~, global~, common~)
+  let common = { help, env_var }
+  Named(short~, nargs~, choices~, defaults~, global~, value_delimiter~, common~)
 }
 
 ///|
@@ -54,10 +60,12 @@ pub fn Arg::positional(
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
   defaults~ : ArrayView[String] = [],
+  value_delimiter~ : String = ",",
+  env_var~ : String = "",
   help~ : String = ""
 ) -> Arg {
-  let common = { help, }
-  Positional(nargs~, choices~, defaults~, common~)
+  let common = { help, env_var }
+  Positional(nargs~, choices~, defaults~, value_delimiter~, common~)
 }
 
 ///|
@@ -84,6 +92,15 @@ pub fn Arg::choices(self : Arg) -> @hashset.T[String]? {
     Flag(_) => None
     Named(choices~, ..) => Some(choices)
     Positional(choices~, ..) => Some(choices)
+  }
+}
+
+///|
+pub fn Arg::value_delimiter(self : Arg) -> String? {
+  match self {
+    Flag(_) => None
+    Named(value_delimiter~, ..) => Some(value_delimiter)
+    Positional(value_delimiter~, ..) => Some(value_delimiter)
   }
 }
 
