@@ -2,7 +2,6 @@
 //  * support Arg::get_one/get_array/get_option/get_flag (user provider parser)
 //  * support Arg::conflicts_with(name) (implement use user provider parser closure)
 //  * support Arg::required_if/required_unless (implement use user provider parser closure)
-//  * support env variables as default value
 //  * add more error tests
 //  * add more docs
 ///|
@@ -53,73 +52,10 @@ pub fn[V : Value] Parser::parse(
   let mut current_value = value
   let mut current_arg : (String, Arg)? = None
   let mut nargs_error : ParserError? = None
-  fn analysis_and_check_spec() -> Unit!ParserError {
-    let mut has_positional = false
-    for name, arg in args.iter2() {
-      let positional = arg is Positional(_)
-      if positional {
-        if not(subcmds.is_empty()) {
-          raise InvalidSpec(
-            "Invalid argument spec: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
-          )
-        } else {
-          positional_arg = Some((name, arg))
-        }
-      }
-      if positional && has_positional {
-        raise InvalidSpec(
-          "Invalid argument, only one positional argument is allowed, second=\{name}",
-        )
-      }
-      has_positional = has_positional || positional
-      if arg.is_global() {
-        global_args[name] = arg
-      }
-      if arg.short() is Some(short_char) {
-        if short_char != null_short &&
-          not(short_char.is_ascii_alphabetic()) &&
-          not(short_char.is_ascii_digit()) {
-          raise InvalidSpec(
-            "Invalid argument spec: parent-cmd=\{cmd_name}, name=\{name}, short=\{short_char}, only 0-9,a-z,A-Z is allowed",
-          )
-        }
-      }
-      if arg.choices() is Some(choices) && not(choices.is_empty()) {
-        for value in get_defaults(arg, env_vars) {
-          if not(choices.contains(value.to_string())) {
-            raise InvalidSpec(
-              "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
-            )
-          }
-        }
-      }
-    }
+  if analysis_and_check_spec!(cmd_name, args, global_args, subcmds, env_vars)
+    is Some(rv) {
+    positional_arg = Some(rv)
   }
-
-  fn handle_current_arg(
-    cli_arg : String,
-    new_arg : (String, Arg)?
-  ) -> (String, Arg)?!ParserError {
-    guard new_arg is Some((name, arg)) else {
-      raise InvalidArgumentName(
-        "Invalid argument name \{cli_arg} for \{cmd_name}",
-      )
-    }
-    if arg is Positional(..) {
-      raise InvalidPositionalAsNamed(
-        "Invalid use positional argument as name argument: \{cli_arg} for \{cmd_name} ",
-      )
-    }
-    if arg is Flag(store~, ..) {
-      current_value.set_flag!(name, store)
-      update_args_length(args_length, name)
-      None
-    } else {
-      Some((name, arg))
-    }
-  }
-
-  analysis_and_check_spec!()
   for cli_arg in cli_args {
     match cli_arg {
       [.. "--", .. name] => {
@@ -131,7 +67,9 @@ pub fn[V : Value] Parser::parse(
           .get(name)
           .map_or_else(fn() { global_args.get(name) }, fn(x) { Some(x) })
           .map(fn(arg) { (name, arg) })
-        current_arg = handle_current_arg!(cli_arg, new_arg)
+        current_arg = handle_current_arg!(
+          current_value, cli_arg, new_arg, cmd_name, args_length,
+        )
       }
       [.. "-", .. rest] => {
         guard rest.char_length() == 1 else {
@@ -154,7 +92,9 @@ pub fn[V : Value] Parser::parse(
             },
             fn(x) { Some(x) },
           )
-        current_arg = handle_current_arg!(cli_arg, new_arg)
+        current_arg = handle_current_arg!(
+          current_value, cli_arg, new_arg, cmd_name, args_length,
+        )
       }
       // == Normal argument ==
       value_string if current_arg is Some((name, arg)) => {
@@ -191,14 +131,16 @@ pub fn[V : Value] Parser::parse(
         cmd_name = value.to_string()
         subcmd_chains.push(cmd_name)
         args = subcmd.args
-        positional_arg = args
-          .iter()
-          .find_first(fn(pair) { pair.1 is Positional(..) })
         subcmds = subcmd.subcmds
         args_length.clear()
         current_value = current_value.select_subcmd!(cmd_name)
         current_arg = None
-        analysis_and_check_spec!()
+        if analysis_and_check_spec!(
+            cmd_name, args, global_args, subcmds, env_vars,
+          )
+          is Some(rv) {
+          positional_arg = Some(rv)
+        }
       }
       // == Positional argument ==
       value_string if positional_arg is Some(arg) => {
@@ -245,6 +187,85 @@ fn update_args_length(
   name : String
 ) -> Unit {
   args_length.set(name, args_length.get_or_default(name, 0) + 1)
+}
+
+///|
+fn[V : Value] handle_current_arg(
+  current_value : V,
+  cli_arg : String,
+  new_arg : (String, Arg)?,
+  cmd_name : String,
+  args_length : @hashmap.T[String, UInt]
+) -> (String, Arg)?!ParserError {
+  guard new_arg is Some((name, arg)) else {
+    raise InvalidArgumentName(
+      "Invalid argument name \{cli_arg} for \{cmd_name}",
+    )
+  }
+  if arg is Positional(..) {
+    raise InvalidPositionalAsNamed(
+      "Invalid use positional argument as name argument: \{cli_arg} for \{cmd_name} ",
+    )
+  }
+  if arg is Flag(store~, ..) {
+    current_value.set_flag!(name, store)
+    update_args_length(args_length, name)
+    None
+  } else {
+    Some((name, arg))
+  }
+}
+
+///|
+fn analysis_and_check_spec(
+  cmd_name : String,
+  args : Map[String, Arg],
+  global_args : Map[String, Arg],
+  subcmds : Map[String, SubCommand],
+  env_vars : Map[String, String]
+) -> (String, Arg)?!ParserError {
+  let mut has_positional = false
+  let mut positional_arg = None
+  for name, arg in args.iter2() {
+    let positional = arg is Positional(_)
+    if positional {
+      if not(subcmds.is_empty()) {
+        raise InvalidSpec(
+          "Invalid argument spec: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
+        )
+      } else {
+        positional_arg = Some((name, arg))
+      }
+    }
+    if positional && has_positional {
+      raise InvalidSpec(
+        "Invalid argument, only one positional argument is allowed, second=\{name}",
+      )
+    }
+    has_positional = has_positional || positional
+    if arg.is_global() {
+      global_args[name] = arg
+    }
+    if arg.short() is Some(short_char) {
+      if short_char != null_short &&
+        not(short_char.is_ascii_alphabetic()) &&
+        not(short_char.is_ascii_digit()) {
+        raise InvalidSpec(
+          "Invalid argument spec: parent-cmd=\{cmd_name}, name=\{name}, short=\{short_char}, only 0-9,a-z,A-Z is allowed",
+        )
+      }
+    }
+    if arg.choices() is Some(choices) && not(choices.is_empty()) {
+      for value in get_defaults(arg, env_vars) {
+        if not(choices.contains(value.to_string())) {
+          raise InvalidSpec(
+            "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
+          )
+        }
+      }
+    }
+  }
+  positional_arg
 }
 
 // * set default value if missing
