@@ -13,7 +13,7 @@ pub(all) struct Parser {
   description : String
 }
 
-///|
+///| Create the argument parser specification
 pub fn Parser::new(
   prog~ : String = "PROG",
   args~ : Map[String, Arg] = {},
@@ -34,7 +34,7 @@ pub(all) type! ParserError {
   InvalidSpec(String)
 } derive(Show)
 
-///|
+///| Parse the command line arguments
 pub fn[V : Value] Parser::parse(
   self : Parser,
   value : V,

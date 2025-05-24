@@ -1,4 +1,4 @@
-///|
+///| Generate the help message
 pub fn Parser::gen_help_message(
   self : Parser,
   subcmd_chains : Array[String],

@@ -7,7 +7,7 @@ pub(all) struct SimpleValue {
   mut subcmd : SimpleValue?
 } derive(Show, Eq)
 
-///|
+///| Create a simple value to hold the parsed result
 pub fn SimpleValue::new(name : String) -> SimpleValue {
   SimpleValue::{
     name,
@@ -23,7 +23,7 @@ pub fn SimpleValue::get_flag(self : SimpleValue, name : String) -> Bool? {
   self.flags.get(name)
 }
 
-///| 
+///| Get the positional argument values
 pub fn[T : BasicValue] SimpleValue::get_positional(
   self : SimpleValue
 ) -> Array[T]!ParserError {
@@ -37,7 +37,7 @@ pub fn[T : BasicValue] SimpleValue::get_positional(
   out
 }
 
-///| The argument has just one value
+///| Get exactly one value by the argument name
 pub fn[T : BasicValue] SimpleValue::get_one(
   self : SimpleValue,
   name : String
@@ -56,7 +56,7 @@ pub fn[T : BasicValue] SimpleValue::get_one(
   }
 }
 
-///| The argument has one/zero value
+///| Get one/zero value by the argument name
 pub fn[T : BasicValue] SimpleValue::get_option(
   self : SimpleValue,
   name : String
@@ -75,7 +75,7 @@ pub fn[T : BasicValue] SimpleValue::get_option(
   }
 }
 
-///| The argument has multiple values
+///| Get multiple values by the argument name
 pub fn[T : BasicValue] SimpleValue::get_array(
   self : SimpleValue,
   name : String

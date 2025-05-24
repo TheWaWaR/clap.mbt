@@ -6,7 +6,7 @@ pub(all) struct SubCommand {
   help : String
 }
 
-///|
+///| Create a subcommand specification
 pub fn SubCommand::new(
   args~ : Map[String, Arg] = {},
   subcmds~ : Map[String, SubCommand] = {},

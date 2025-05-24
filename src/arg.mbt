@@ -28,7 +28,7 @@ pub struct CommonFields {
   help : String
 }
 
-///|
+///| Create a flag argument
 pub fn Arg::flag(
   short~ : Char = null_short,
   store~ : Bool = true,
@@ -40,7 +40,7 @@ pub fn Arg::flag(
   Flag(short~, store~, global~, common~)
 }
 
-///|
+///| Create a named argument
 pub fn Arg::named(
   short~ : Char = null_short,
   nargs~ : Nargs = Any,
@@ -55,7 +55,7 @@ pub fn Arg::named(
   Named(short~, nargs~, choices~, defaults~, global~, value_delimiter~, common~)
 }
 
-///|
+///| Create a positional argument
 pub fn Arg::positional(
   nargs~ : Nargs = Any,
   choices~ : @hashset.T[String] = @hashset.new(),
@@ -146,7 +146,7 @@ pub(all) enum Nargs {
   Range(UInt, UInt)
 } derive(Show, Eq)
 
-///| The length must greater than 0
+///| Check if the length is constrained by Nargs
 pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => true
@@ -158,7 +158,7 @@ pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
   }
 }
 
-///| The length must greater than 0
+///| Check if the length exceeded the max length
 pub fn Nargs::is_exceeded(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => false
