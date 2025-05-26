@@ -29,11 +29,11 @@ pub fn Parser::gen_help_message(
     let name_upper = name.to_upper()
     let nargs = arg.nargs().unwrap()
     let label = if nargs is Nargs::Fixed(1) {
-      "<\{name_upper}>"
+      "<{name_upper}>"
     } else if nargs.is_exceeded(2) {
-      "[\{name_upper}]"
+      "[{name_upper}]"
     } else {
-      "[\{name_upper}]..."
+      "[{name_upper}]..."
     }
     builder.write_char(' ')
     builder.write_string(label)
@@ -51,7 +51,7 @@ pub fn Parser::gen_help_message(
       .maximum()
       .unwrap()
     for name, subcmd in subcmds.iter2() {
-      builder.write_string("  \{name}  ")
+      builder.write_string("  {name}  ")
       for _ in 0..<(max_length - name.char_length()) {
         builder.write_char(' ')
       }
@@ -62,7 +62,7 @@ pub fn Parser::gen_help_message(
   }
   if arg_pos_mark is Some((label, help)) {
     builder.write_string("Arguments:\n")
-    builder.write_string("  \{label}  \{help}\n\n")
+    builder.write_string("  {label}  {help}\n\n")
   }
   write_args(builder, "Options", args, {}, true)
   if not(global_args.is_empty()) {
@@ -80,19 +80,19 @@ fn write_args(
   cull_args : Map[String, Arg],
   include_help : Bool
 ) -> Unit {
-  builder.write_string("\{title}:\n")
+  builder.write_string("{title}:\n")
   let options = []
   for name, arg in the_args.iter2() {
     guard not(cull_args.contains(name)) else { continue }
     guard not(arg is Positional(..)) else { continue }
     let short_string = match arg.short() {
-      Some(short) => "-\{short},"
+      Some(short) => "-{short},"
       None => "   "
     }
     let long_string = if arg is Flag(_) {
-      "--\{name}"
+      "--{name}"
     } else {
-      "--\{name} <\{name.to_upper()}>"
+      "--{name} <{name.to_upper()}>"
     }
     let length = short_string.char_length() + long_string.char_length()
     options.push((short_string, long_string, length, arg.common().help))
@@ -103,7 +103,7 @@ fn write_args(
   let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()
   for item in options {
     let (short_string, long_string, length, help) = item
-    builder.write_string("  \{short_string} \{long_string}  ")
+    builder.write_string("  {short_string} {long_string}  ")
     for _ in 0..<(max_length - length) {
       builder.write_char(' ')
     }

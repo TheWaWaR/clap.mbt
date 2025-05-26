@@ -43,11 +43,11 @@ pub fn[T : BasicValue] SimpleValue::get_one(
   name : String
 ) -> T!ParserError {
   guard self.args.get(name) is Some(values) else {
-    raise InvalidArgumentValue("Value not found for: \{name}")
+    raise InvalidArgumentValue("Value not found for: {name}")
   }
   guard values.length() == 1 else {
     raise InvalidArgumentValueLength(
-      "Invalid argument length: \{values.length()}, expected=1, name=\{name}",
+      "Invalid argument length: {values.length()}, expected=1, name={name}",
     )
   }
   match T::parse?(values[0]) {
@@ -65,7 +65,7 @@ pub fn[T : BasicValue] SimpleValue::get_option(
   let length = values.length()
   guard length <= 1 else {
     raise InvalidArgumentValueLength(
-      "Invalid argument length: \{length}, expected<=1, name=\{name}",
+      "Invalid argument length: {length}, expected<=1, name={name}",
     )
   }
   guard values.get(0) is Some(value) else { return None }
@@ -137,7 +137,7 @@ pub(open) trait Value {
 ///|
 impl Value with set_flag(_self, name : String, _value : Bool) -> Unit!ParserError {
   raise ParserError::InvalidArgumentName(
-    "Invalid argument name \{name}, unimplemented",
+    "Invalid argument name {name}, unimplemented",
   )
 }
 
@@ -149,14 +149,14 @@ impl Value with add_value(
   _positional : Bool
 ) -> Unit!ParserError {
   raise ParserError::InvalidArgumentValue(
-    "Invalid argument name=\{name}, value=\{value}, unimplemented",
+    "Invalid argument name={name}, value={value}, unimplemented",
   )
 }
 
 ///|
 impl Value with select_subcmd(_self, subcmd : String) -> Self!ParserError {
   raise ParserError::InvalidSubCommandName(
-    "Invalid sub-command \{subcmd}, unimplemented",
+    "Invalid sub-command {subcmd}, unimplemented",
   )
 }
 

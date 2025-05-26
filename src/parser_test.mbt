@@ -174,14 +174,14 @@ impl Value for CustomValue with set_flag(self, name : String, value : Bool) -> U
   match self.subcmd {
     None => {
       guard name == "debug" else {
-        raise ParserError::InvalidArgumentName("Invalid flag \{name}=\{value}")
+        raise ParserError::InvalidArgumentName("Invalid flag {name}={value}")
       }
       self.debug = value
     }
     Some(SubCommand1(positional_args~, ..)) => {
       guard name == "verbose" else {
         raise ParserError::InvalidArgumentName(
-          "Invalid subcmd1 flag \{name}=\{value}",
+          "Invalid subcmd1 flag {name}={value}",
         )
       }
       self.subcmd = Some(SubCommand1(verbose=value, positional_args~))
@@ -202,7 +202,7 @@ impl Value for CustomValue with add_value(
         "arg1" => self.arg1 = value
         _ =>
           raise ParserError::InvalidArgumentName(
-            "Invalid argument name \{name}",
+            "Invalid argument name {name}",
           )
       }
     Some(SubCommand1(positional_args~, ..)) =>
@@ -210,14 +210,14 @@ impl Value for CustomValue with add_value(
         "arg2" => {
           guard @strconv.parse_uint?(value) is Ok(value) else {
             raise ParserError::InvalidArgumentValue(
-              "Invalid value \{value} for argument \{name}",
+              "Invalid value {value} for argument {name}",
             )
           }
           positional_args.push(value)
         }
         _ =>
           raise ParserError::InvalidArgumentName(
-            "Invalid argument name \{name}",
+            "Invalid argument name {name}",
           )
       }
   }
@@ -230,7 +230,7 @@ impl Value for CustomValue with select_subcmd(self, name : String) -> CustomValu
       self.subcmd = Some(SubCommand1(verbose=false, positional_args=[]))
     _ =>
       raise ParserError::InvalidSubCommandName(
-        "Invalid subcommand name \{name}",
+        "Invalid subcommand name {name}",
       )
   }
   self

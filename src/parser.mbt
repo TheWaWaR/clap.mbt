@@ -73,7 +73,7 @@ pub fn[V : Value] Parser::parse(
       [.. "-", .. rest] => {
         guard rest.char_length() == 1 else {
           raise InvalidArgumentName(
-            "Invalid short argument name \{cli_arg} for \{cmd_name}",
+            "Invalid short argument name {cli_arg} for {cmd_name}",
           )
         }
         let short_char = rest.char_at(0)
@@ -100,7 +100,7 @@ pub fn[V : Value] Parser::parse(
         if arg.choices() is Some(choices) {
           if choices.size() > 0 && not(choices.contains(value_string)) {
             raise InvalidArgumentValue(
-              "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{choices}",
+              "Invalid argument value for {cmd_name} => {name}, value={value_string}, choices={choices}",
             )
           }
         }
@@ -110,7 +110,7 @@ pub fn[V : Value] Parser::parse(
         let nargs = arg.nargs().unwrap()
         if nargs.is_exceeded(new_length) {
           raise TooManyArgs(
-            "Argument length limit: \{nargs}, current length: \{new_length}",
+            "Argument length limit: {nargs}, current length: {new_length}",
           )
         }
         if (not(positional_arg.is_empty()) || not(subcmds.is_empty())) &&
@@ -149,7 +149,7 @@ pub fn[V : Value] Parser::parse(
       }
       value =>
         raise InvalidSubCommandName(
-          "Invalid sub-command name \{value} for \{cmd_name}",
+          "Invalid sub-command name {value} for {cmd_name}",
         )
     }
   }
@@ -198,12 +198,12 @@ fn[V : Value] handle_current_arg(
 ) -> (String, Arg)?!ParserError {
   guard new_arg is Some((name, arg)) else {
     raise InvalidArgumentName(
-      "Invalid argument name \{cli_arg} for \{cmd_name}",
+      "Invalid argument name {cli_arg} for {cmd_name}",
     )
   }
   if arg is Positional(..) {
     raise InvalidPositionalAsNamed(
-      "Invalid use positional argument as name argument: \{cli_arg} for \{cmd_name} ",
+      "Invalid use positional argument as name argument: {cli_arg} for {cmd_name} ",
     )
   }
   if arg is Flag(store~, ..) {
@@ -230,7 +230,7 @@ fn analysis_and_check_spec(
     if positional {
       if not(subcmds.is_empty()) {
         raise InvalidSpec(
-          "Invalid argument spec: sub-commands(parent=\{cmd_name}) and positional argument(\{name}) are not allowed at the same time",
+          "Invalid argument spec: sub-commands(parent={cmd_name}) and positional argument({name}) are not allowed at the same time",
         )
       } else {
         positional_arg = Some((name, arg))
@@ -238,7 +238,7 @@ fn analysis_and_check_spec(
     }
     if positional && has_positional {
       raise InvalidSpec(
-        "Invalid argument, only one positional argument is allowed, second=\{name}",
+        "Invalid argument, only one positional argument is allowed, second={name}",
       )
     }
     has_positional = has_positional || positional
@@ -250,7 +250,7 @@ fn analysis_and_check_spec(
         not(short_char.is_ascii_alphabetic()) &&
         not(short_char.is_ascii_digit()) {
         raise InvalidSpec(
-          "Invalid argument spec: parent-cmd=\{cmd_name}, name=\{name}, short=\{short_char}, only 0-9,a-z,A-Z is allowed",
+          "Invalid argument spec: parent-cmd={cmd_name}, name={name}, short={short_char}, only 0-9,a-z,A-Z is allowed",
         )
       }
     }
@@ -258,7 +258,7 @@ fn analysis_and_check_spec(
       for value in get_defaults(arg, env_vars) {
         if not(choices.contains(value.to_string())) {
           raise InvalidSpec(
-            "Invalid argument, name=\{name}, default value=\{value} not in choices=\{choices}",
+            "Invalid argument, name={name}, default value={value} not in choices={choices}",
           )
         }
       }
@@ -295,7 +295,7 @@ fn[V : Value] complete_level(
       // flag and named argument can only presented in final subcommand
       if (arg is Flag(_) || arg is Named(_)) && length > 0 && not(final_subcmd) {
         raise InvalidArgumentValueLength(
-          "Invalid argument: \{name}, flag/named argument can only presented in final level",
+          "Invalid argument: {name}, flag/named argument can only presented in final level",
         )
       }
       if arg is Flag(store~, ..) {
@@ -305,7 +305,7 @@ fn[V : Value] complete_level(
         } else if length > 1 {
           // TODO: support multiple flag in the future?
           raise InvalidArgumentValueLength(
-            "Invalid flag argument length=\{length} > 1",
+            "Invalid flag argument length={length} > 1",
           )
         }
       } else {
@@ -329,20 +329,20 @@ fn[V : Value] complete_level(
             if not(final_subcmd) {
               if length != 0 {
                 raise InvalidArgumentValueLength(
-                  "Invalid positional argument length=\{length}, expected: 0 (has subcommand)",
+                  "Invalid positional argument length={length}, expected: 0 (has subcommand)",
                 )
               }
             } else {
               nargs_error = Some(
                 InvalidArgumentValueLength(
-                  "Invalid positional argument length=\{length}, limit: \{nargs}",
+                  "Invalid positional argument length={length}, limit: {nargs}",
                 ),
               )
             }
           } else if final_subcmd {
             nargs_error = Some(
               InvalidArgumentValueLength(
-                "Invalid name argument length=\{length}, limit: \{nargs}, final: \{final_subcmd}",
+                "Invalid name argument length={length}, limit: {nargs}, final: {final_subcmd}",
               ),
             )
           }
