@@ -7,9 +7,10 @@ Command Line Argument Parser for MoonBit
 * Support argument choices/default values
 * Support global argument
 * Support env variables as default value
-* Support infinite level of sub-command
+* Support infinite level of sub-command 
 * Support custom value type
 * Support generate [clap-rs](https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html) style help output
+* When named argument length full filled immediately finish current argument 
 
 ## Usage
 Here is a simple example:
