@@ -384,3 +384,20 @@ test "simple env vars" {
     #|
   assert_eq!(help_message, expected_help_message)
 }
+
+///|
+test "parse special positional argument with -" {
+  let parser = Parser::new(args={
+    "arg1": Arg::positional(nargs=AtMost(3), help="Argument 1"),
+    "arg2": Arg::named(short='A', nargs=AtMost(1), help="Argument 2"),
+  })
+  let value = SimpleValue::new(parser.prog)
+  let help_message = parser.parse!(value, ["-", "-2", "xx", "-A", "333"])
+  assert_eq!(help_message, None)
+  assert_eq!(value.name, "PROG")
+  assert_eq!(value.args.size(), 1)
+  assert_eq!(value.args.get("arg2").unwrap(), ["333"])
+  assert_eq!(value.flags.is_empty(), true)
+  assert_eq!(value.positional_args, ["-", "-2", "xx"])
+  assert_eq!(value.subcmd.is_empty(), true)
+}

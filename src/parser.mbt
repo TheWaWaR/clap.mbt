@@ -66,35 +66,50 @@ pub fn[V : Value] Parser::parse(
           .get(name)
           .map_or_else(fn() { global_args.get(name) }, fn(x) { Some(x) })
           .map(fn(arg) { (name, arg) })
-        current_arg = handle_current_arg!(
-          current_value, cli_arg, new_arg, cmd_name, args_length,
-        )
-      }
-      [.. "-", .. rest] => {
-        guard rest.char_length() == 1 else {
-          raise InvalidArgumentName(
-            "Invalid short argument name \{cli_arg} for \{cmd_name}",
+        if new_arg.is_empty() && positional_arg is Some(arg) {
+          current_value.add_value!(arg.0, cli_arg, true)
+          update_args_length(args_length, arg.0)
+        } else {
+          current_arg = handle_current_arg!(
+            current_value, cli_arg, new_arg, cmd_name, args_length,
           )
         }
-        let short_char = rest.char_at(0)
-        if short_char == 'h' {
-          return Some(self.gen_help_message(subcmd_chains, global_args))
-        }
-        let new_arg = args
-          .iter()
-          .find_first(fn(pair) { pair.1.short() == Some(short_char) })
-          .map_or_else(
-            fn() {
-              global_args
-              .iter()
-              .find_first(fn(pair) { pair.1.short() == Some(short_char) })
-            },
-            fn(x) { Some(x) },
-          )
-        current_arg = handle_current_arg!(
-          current_value, cli_arg, new_arg, cmd_name, args_length,
-        )
       }
+      [.. "-", .. rest] =>
+        if rest.char_length() != 1 {
+          if positional_arg is Some(arg) {
+            current_value.add_value!(arg.0, cli_arg, true)
+            update_args_length(args_length, arg.0)
+          } else {
+            raise InvalidArgumentName(
+              "Invalid short argument name \{cli_arg} for \{cmd_name}",
+            )
+          }
+        } else {
+          let short_char = rest.char_at(0)
+          if short_char == 'h' {
+            return Some(self.gen_help_message(subcmd_chains, global_args))
+          }
+          let new_arg = args
+            .iter()
+            .find_first(fn(pair) { pair.1.short() == Some(short_char) })
+            .map_or_else(
+              fn() {
+                global_args
+                .iter()
+                .find_first(fn(pair) { pair.1.short() == Some(short_char) })
+              },
+              fn(x) { Some(x) },
+            )
+          if new_arg.is_empty() && positional_arg is Some(arg) {
+            current_value.add_value!(arg.0, cli_arg, true)
+            update_args_length(args_length, arg.0)
+          } else {
+            current_arg = handle_current_arg!(
+              current_value, cli_arg, new_arg, cmd_name, args_length,
+            )
+          }
+        }
       // == Normal argument ==
       value_string if current_arg is Some((name, arg)) => {
         if arg.choices() is Some(choices) {
@@ -169,7 +184,7 @@ pub fn[V : Value] Parser::parse(
 fn get_defaults(
   arg : Arg,
   env_vars : Map[String, String]
-) -> Iter[@string.StringView] {
+) -> Iter[@string.View] {
   let common = arg.common()
   if not(common.env_var.is_empty()) &&
     env_vars.get(common.env_var) is Some(env_value) {
