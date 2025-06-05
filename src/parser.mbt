@@ -130,6 +130,7 @@ pub fn[V : Value] Parser::parse(
         }
         if (not(positional_arg.is_empty()) || not(subcmds.is_empty())) &&
           nargs.is_exceeded(new_length + 1) {
+          // Stop accepting more named arguments if nargs is full filled
           current_arg = None
         }
       }
@@ -224,6 +225,7 @@ fn[V : Value] handle_current_arg(
   if arg is Flag(store~, ..) {
     current_value.set_flag!(name, store)
     update_args_length(args_length, name)
+    // Only one flag can be in a single level, so reset current_arg
     None
   } else {
     Some((name, arg))
