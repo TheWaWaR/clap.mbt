@@ -322,7 +322,7 @@ fn[V : Value] complete_level(
         } else if length > 1 {
           // TODO: support multiple flag in the future?
           raise InvalidArgumentValueLength(
-            "Invalid flag argument length=\{length} > 1",
+            "Invalid flag argument length: \{length} > 1",
           )
         }
       } else {
