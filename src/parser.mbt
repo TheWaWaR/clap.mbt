@@ -317,7 +317,21 @@ fn[V : Value] complete_level(
       }
       if arg is Flag(store~, ..) {
         if length == 0 {
-          current_value.set_flag!(name, not(store))
+          let common = arg.common()
+          let value = if not(common.env_var.is_empty()) &&
+            env_vars.get(common.env_var) is Some(env_value) {
+            match env_value {
+              "true" => true
+              "false" => false
+              _ =>
+                raise InvalidArgumentValue(
+                  "Invalid flag environment variable: \{common.env_var}=\{env_value}",
+                )
+            }
+          } else {
+            not(store)
+          }
+          current_value.set_flag!(name, value)
           update_args_length(args_length, name)
         } else if length > 1 {
           // TODO: support multiple flag in the future?
