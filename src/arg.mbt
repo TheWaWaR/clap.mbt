@@ -34,7 +34,7 @@ pub fn Arg::flag(
   store~ : Bool = true,
   global~ : Bool = false,
   env_var~ : String = "",
-  help~ : String = ""
+  help~ : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Flag(short~, store~, global~, common~)
@@ -49,7 +49,7 @@ pub fn Arg::named(
   global~ : Bool = false,
   value_delimiter~ : String = ",",
   env_var~ : String = "",
-  help~ : String = ""
+  help~ : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Named(short~, nargs~, choices~, defaults~, global~, value_delimiter~, common~)
@@ -62,7 +62,7 @@ pub fn Arg::positional(
   defaults~ : ArrayView[String] = [],
   value_delimiter~ : String = ",",
   env_var~ : String = "",
-  help~ : String = ""
+  help~ : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Positional(nargs~, choices~, defaults~, value_delimiter~, common~)

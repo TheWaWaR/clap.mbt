@@ -1,0 +1,111 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "TheWaWaR/clap"
+
+import(
+  "moonbitlang/core/hashmap"
+  "moonbitlang/core/hashset"
+  "moonbitlang/core/strconv"
+)
+
+// Values
+
+// Errors
+pub(all) suberror ParserError {
+  InvalidArgumentName(String)
+  InvalidSubCommandName(String)
+  InvalidPositionalAsNamed(String)
+  InvalidArgumentValue(String)
+  InvalidArgumentValueLength(String)
+  TooManyArgs(String)
+  InvalidSpec(String)
+}
+impl Show for ParserError
+
+// Types and methods
+pub(all) enum Arg {
+  Flag(short~ : Char, store~ : Bool, global~ : Bool, common~ : CommonFields)
+  Named(short~ : Char, nargs~ : Nargs, choices~ : @hashset.T[String], defaults~ : ArrayView[String], global~ : Bool, value_delimiter~ : String, common~ : CommonFields)
+  Positional(nargs~ : Nargs, choices~ : @hashset.T[String], defaults~ : ArrayView[String], value_delimiter~ : String, common~ : CommonFields)
+}
+fn Arg::choices(Self) -> @hashset.T[String]?
+fn Arg::common(Self) -> CommonFields
+fn Arg::defaults(Self) -> ArrayView[String]
+fn Arg::flag(short? : Char, store? : Bool, global? : Bool, env_var? : String, help? : String) -> Self
+fn Arg::is_global(Self) -> Bool
+fn Arg::named(short? : Char, nargs? : Nargs, choices? : @hashset.T[String], defaults? : ArrayView[String], global? : Bool, value_delimiter? : String, env_var? : String, help? : String) -> Self
+fn Arg::nargs(Self) -> Nargs?
+fn Arg::positional(nargs? : Nargs, choices? : @hashset.T[String], defaults? : ArrayView[String], value_delimiter? : String, env_var? : String, help? : String) -> Self
+fn Arg::short(Self) -> Char?
+fn Arg::value_delimiter(Self) -> String?
+
+pub struct CommonFields {
+  env_var : String
+  help : String
+}
+
+pub(all) enum Nargs {
+  Any
+  One
+  Fixed(UInt)
+  AtLeast(UInt)
+  AtMost(UInt)
+  Range(UInt, UInt)
+}
+fn Nargs::is_exceeded(Self, UInt) -> Bool
+fn Nargs::is_valid_length(Self, UInt) -> Bool
+impl Eq for Nargs
+impl Show for Nargs
+
+pub(all) struct Parser {
+  prog : String
+  args : Map[String, Arg]
+  subcmds : Map[String, SubCommand]
+  description : String
+}
+fn Parser::gen_help_message(Self, Array[String], Map[String, Arg]) -> String
+fn Parser::new(prog? : String, args? : Map[String, Arg], subcmds? : Map[String, SubCommand], description? : String) -> Self
+fn[V : Value] Parser::parse(Self, V, ArrayView[String], env_vars? : Map[String, String]) -> String? raise ParserError
+
+pub(all) struct SimpleValue {
+  name : String
+  args : @hashmap.T[String, Array[String]]
+  flags : @hashmap.T[String, Bool]
+  positional_args : Array[String]
+  mut subcmd : SimpleValue?
+}
+fn[T : BasicValue] SimpleValue::get_array(Self, String) -> Array[T] raise ParserError
+fn SimpleValue::get_flag(Self, String) -> Bool?
+fn[T : BasicValue] SimpleValue::get_one(Self, String) -> T raise ParserError
+fn[T : BasicValue] SimpleValue::get_option(Self, String) -> T? raise ParserError
+fn[T : BasicValue] SimpleValue::get_positional(Self) -> Array[T] raise ParserError
+fn SimpleValue::new(String) -> Self
+impl Value for SimpleValue
+impl Eq for SimpleValue
+impl Show for SimpleValue
+
+pub(all) struct SubCommand {
+  args : Map[String, Arg]
+  subcmds : Map[String, SubCommand]
+  help : String
+}
+fn SubCommand::new(args? : Map[String, Arg], subcmds? : Map[String, Self], help? : String) -> Self
+
+// Type aliases
+
+// Traits
+pub(open) trait BasicValue {
+  parse(String) -> Self raise @strconv.StrConvError
+}
+impl BasicValue for Int
+impl BasicValue for Int64
+impl BasicValue for UInt
+impl BasicValue for UInt64
+impl BasicValue for Double
+impl BasicValue for String
+
+pub(open) trait Value {
+  set_flag(Self, String, Bool) -> Unit raise ParserError = _
+  add_value(Self, String, String, Bool) -> Unit raise ParserError = _
+  select_subcmd(Self, String) -> Self raise ParserError = _
+}
+

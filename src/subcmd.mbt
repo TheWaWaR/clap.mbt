@@ -10,7 +10,7 @@ pub(all) struct SubCommand {
 pub fn SubCommand::new(
   args~ : Map[String, Arg] = {},
   subcmds~ : Map[String, SubCommand] = {},
-  help~ : String = ""
+  help~ : String = "",
 ) -> SubCommand {
   { args, subcmds, help }
 }
