@@ -3,6 +3,7 @@
 //  * support Arg::required_if/required_unless (implement use user provider parser closure)
 //  * add more error tests
 //  * add more docs
+
 ///|
 pub(all) struct Parser {
   /// The program name
@@ -18,13 +19,13 @@ pub fn Parser::new(
   prog~ : String = "PROG",
   args~ : Map[String, Arg] = {},
   subcmds~ : Map[String, SubCommand] = {},
-  description~ : String = ""
+  description~ : String = "",
 ) -> Parser {
   { prog, args, subcmds, description }
 }
 
 ///|
-pub(all) type! ParserError {
+pub(all) suberror ParserError {
   InvalidArgumentName(String)
   InvalidSubCommandName(String)
   InvalidPositionalAsNamed(String)
@@ -39,8 +40,8 @@ pub fn[V : Value] Parser::parse(
   self : Parser,
   value : V,
   cli_args : ArrayView[String],
-  env_vars~ : Map[String, String] = {}
-) -> String?!ParserError {
+  env_vars~ : Map[String, String] = {},
+) -> String? raise ParserError {
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
   let global_args : Map[String, Arg] = {}
@@ -51,7 +52,7 @@ pub fn[V : Value] Parser::parse(
   let mut current_value = value
   let mut current_arg : (String, Arg)? = None
   let mut nargs_error : ParserError? = None
-  if analysis_and_check_spec!(cmd_name, args, global_args, subcmds, env_vars)
+  if analysis_and_check_spec(cmd_name, args, global_args, subcmds, env_vars)
     is Some(rv) {
     positional_arg = Some(rv)
   }
@@ -67,10 +68,10 @@ pub fn[V : Value] Parser::parse(
           .map_or_else(fn() { global_args.get(name) }, fn(x) { Some(x) })
           .map(fn(arg) { (name, arg) })
         if new_arg.is_empty() && positional_arg is Some(arg) {
-          current_value.add_value!(arg.0, cli_arg, true)
+          current_value.add_value(arg.0, cli_arg, true)
           update_args_length(args_length, arg.0)
         } else {
-          current_arg = handle_current_arg!(
+          current_arg = handle_current_arg(
             current_value, cli_arg, new_arg, cmd_name, args_length,
           )
         }
@@ -78,7 +79,7 @@ pub fn[V : Value] Parser::parse(
       [.. "-", .. rest] =>
         if rest.char_length() != 1 {
           if positional_arg is Some(arg) {
-            current_value.add_value!(arg.0, cli_arg, true)
+            current_value.add_value(arg.0, cli_arg, true)
             update_args_length(args_length, arg.0)
           } else {
             raise InvalidArgumentName(
@@ -102,10 +103,10 @@ pub fn[V : Value] Parser::parse(
               fn(x) { Some(x) },
             )
           if new_arg.is_empty() && positional_arg is Some(arg) {
-            current_value.add_value!(arg.0, cli_arg, true)
+            current_value.add_value(arg.0, cli_arg, true)
             update_args_length(args_length, arg.0)
           } else {
-            current_arg = handle_current_arg!(
+            current_arg = handle_current_arg(
               current_value, cli_arg, new_arg, cmd_name, args_length,
             )
           }
@@ -119,7 +120,7 @@ pub fn[V : Value] Parser::parse(
             )
           }
         }
-        current_value.add_value!(name, value_string, false)
+        current_value.add_value(name, value_string, false)
         update_args_length(args_length, name)
         let new_length = args_length.get_or_default(name, 0)
         let nargs = arg.nargs().unwrap()
@@ -136,7 +137,7 @@ pub fn[V : Value] Parser::parse(
       }
       // == SubCommand ==
       value if subcmds.get(value) is Some(subcmd) => {
-        if complete_level!(
+        if complete_level(
             args, global_args, args_length, current_value, env_vars, false,
           )
           is Some(err) {
@@ -148,9 +149,9 @@ pub fn[V : Value] Parser::parse(
         args = subcmd.args
         subcmds = subcmd.subcmds
         args_length.clear()
-        current_value = current_value.select_subcmd!(cmd_name)
+        current_value = current_value.select_subcmd(cmd_name)
         current_arg = None
-        if analysis_and_check_spec!(
+        if analysis_and_check_spec(
             cmd_name, args, global_args, subcmds, env_vars,
           )
           is Some(rv) {
@@ -160,7 +161,7 @@ pub fn[V : Value] Parser::parse(
       // == Positional argument ==
       value_string if positional_arg is Some(arg) => {
         let name = arg.0
-        current_value.add_value!(name, value_string, true)
+        current_value.add_value(name, value_string, true)
         update_args_length(args_length, name)
       }
       value =>
@@ -169,7 +170,7 @@ pub fn[V : Value] Parser::parse(
         )
     }
   }
-  if complete_level!(
+  if complete_level(
       args, global_args, args_length, current_value, env_vars, true,
     )
     is Some(err) {
@@ -184,7 +185,7 @@ pub fn[V : Value] Parser::parse(
 ///|
 fn get_defaults(
   arg : Arg,
-  env_vars : Map[String, String]
+  env_vars : Map[String, String],
 ) -> Iter[@string.View] {
   let common = arg.common()
   if not(common.env_var.is_empty()) &&
@@ -199,7 +200,7 @@ fn get_defaults(
 ///|
 fn update_args_length(
   args_length : @hashmap.T[String, UInt],
-  name : String
+  name : String,
 ) -> Unit {
   args_length.set(name, args_length.get_or_default(name, 0) + 1)
 }
@@ -210,8 +211,8 @@ fn[V : Value] handle_current_arg(
   cli_arg : String,
   new_arg : (String, Arg)?,
   cmd_name : String,
-  args_length : @hashmap.T[String, UInt]
-) -> (String, Arg)?!ParserError {
+  args_length : @hashmap.T[String, UInt],
+) -> (String, Arg)? raise ParserError {
   guard new_arg is Some((name, arg)) else {
     raise InvalidArgumentName(
       "Invalid argument name \{cli_arg} for \{cmd_name}",
@@ -223,7 +224,7 @@ fn[V : Value] handle_current_arg(
     )
   }
   if arg is Flag(store~, ..) {
-    current_value.set_flag!(name, store)
+    current_value.set_flag(name, store)
     update_args_length(args_length, name)
     // Only one flag can be in a single level, so reset current_arg
     None
@@ -238,8 +239,8 @@ fn analysis_and_check_spec(
   args : Map[String, Arg],
   global_args : Map[String, Arg],
   subcmds : Map[String, SubCommand],
-  env_vars : Map[String, String]
-) -> (String, Arg)?!ParserError {
+  env_vars : Map[String, String],
+) -> (String, Arg)? raise ParserError {
   let mut has_positional = false
   let mut positional_arg = None
   for name, arg in args.iter2() {
@@ -286,6 +287,7 @@ fn analysis_and_check_spec(
 
 // * set default value if missing
 // * check argument value length is valid
+
 ///|
 fn[V : Value] complete_level(
   args : Map[String, Arg],
@@ -293,8 +295,8 @@ fn[V : Value] complete_level(
   args_length : @hashmap.T[String, UInt],
   current_value : V,
   env_vars : Map[String, String],
-  final_subcmd : Bool
-) -> ParserError?!ParserError {
+  final_subcmd : Bool,
+) -> ParserError? raise ParserError {
   let mut nargs_error : ParserError? = None
   let all_args = if final_subcmd {
     [(args, false), (global_args, true)]
@@ -331,7 +333,7 @@ fn[V : Value] complete_level(
           } else {
             not(store)
           }
-          current_value.set_flag!(name, value)
+          current_value.set_flag(name, value)
           update_args_length(args_length, name)
         } else if length > 1 {
           // TODO: support multiple flag in the future?
@@ -345,11 +347,7 @@ fn[V : Value] complete_level(
         //   * non-final level named argument
         if length == 0 && not(positional && not(final_subcmd)) {
           for default_value in get_defaults(arg, env_vars) {
-            current_value.add_value!(
-              name,
-              default_value.to_string(),
-              positional,
-            )
+            current_value.add_value(name, default_value.to_string(), positional)
             update_args_length(args_length, name)
             length += 1
           }

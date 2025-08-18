@@ -2,7 +2,7 @@
 pub fn Parser::gen_help_message(
   self : Parser,
   subcmd_chains : Array[String],
-  global_args : Map[String, Arg]
+  global_args : Map[String, Arg],
 ) -> String {
   let builder = StringBuilder::new(size_hint=32)
   builder.write_string("Usage: ")
@@ -78,7 +78,7 @@ fn write_args(
   title : String,
   the_args : Map[String, Arg],
   cull_args : Map[String, Arg],
-  include_help : Bool
+  include_help : Bool,
 ) -> Unit {
   builder.write_string("\{title}:\n")
   let options = []
