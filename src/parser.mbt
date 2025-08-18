@@ -87,7 +87,7 @@ pub fn[V : Value] Parser::parse(
             )
           }
         } else {
-          let short_char = rest.char_at(0)
+          let short_char = rest.get_char(0).unwrap()
           if short_char == 'h' {
             return Some(self.gen_help_message(subcmd_chains, global_args))
           }

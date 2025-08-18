@@ -29,7 +29,7 @@ pub fn[T : BasicValue] SimpleValue::get_positional(
 ) -> Array[T] raise ParserError {
   let out = []
   for value in self.positional_args {
-    match T::parse?(value) {
+    match (try? T::parse(value)) {
       Err(err) => raise InvalidArgumentValue(err.to_string())
       Ok(v) => out.push(v)
     }
@@ -50,7 +50,7 @@ pub fn[T : BasicValue] SimpleValue::get_one(
       "Invalid argument length: \{values.length()}, expected=1, name=\{name}",
     )
   }
-  match T::parse?(values[0]) {
+  match (try? T::parse(values[0])) {
     Err(err) => raise InvalidArgumentValue(err.to_string())
     Ok(v) => v
   }
@@ -69,7 +69,7 @@ pub fn[T : BasicValue] SimpleValue::get_option(
     )
   }
   guard values.get(0) is Some(value) else { return None }
-  match T::parse?(value) {
+  match (try? T::parse(value)) {
     Err(err) => raise InvalidArgumentValue(err.to_string())
     Ok(v) => Some(v)
   }
@@ -83,7 +83,7 @@ pub fn[T : BasicValue] SimpleValue::get_array(
   guard self.args.get(name) is Some(values) else { return [] }
   let out = []
   for value in values {
-    match T::parse?(value) {
+    match (try? T::parse(value)) {
       Err(err) => raise InvalidArgumentValue(err.to_string())
       Ok(v) => out.push(v)
     }

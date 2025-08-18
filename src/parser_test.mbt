@@ -208,12 +208,13 @@ impl Value for CustomValue with add_value(
     Some(SubCommand1(positional_args~, ..)) =>
       match name {
         "arg2" => {
-          guard @strconv.parse_uint?(value) is Ok(value) else {
+          let parsed_value = try? @strconv.parse_uint(value)
+          guard parsed_value is Ok(uint_value) else {
             raise ParserError::InvalidArgumentValue(
               "Invalid value \{value} for argument \{name}",
             )
           }
-          positional_args.push(value)
+          positional_args.push(uint_value)
         }
         _ =>
           raise ParserError::InvalidArgumentName(
