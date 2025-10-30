@@ -1,13 +1,14 @@
 ///|
 pub(all) struct SimpleValue {
   name : String
-  args : @hashmap.T[String, Array[String]]
-  flags : @hashmap.T[String, Bool]
+  args : @hashmap.HashMap[String, Array[String]]
+  flags : @hashmap.HashMap[String, Bool]
   positional_args : Array[String]
   mut subcmd : SimpleValue?
 } derive(Show, Eq)
 
-///| Create a simple value to hold the parsed result
+///|
+/// Create a simple value to hold the parsed result
 pub fn SimpleValue::new(name : String) -> SimpleValue {
   SimpleValue::{
     name,
@@ -23,21 +24,22 @@ pub fn SimpleValue::get_flag(self : SimpleValue, name : String) -> Bool? {
   self.flags.get(name)
 }
 
-///| Get the positional argument values
+///|
+/// Get the positional argument values
 pub fn[T : BasicValue] SimpleValue::get_positional(
   self : SimpleValue,
 ) -> Array[T] raise ParserError {
   let out = []
   for value in self.positional_args {
-    match (try? T::parse(value)) {
-      Err(err) => raise InvalidArgumentValue(err.to_string())
-      Ok(v) => out.push(v)
+    out.push(T::parse(value)) catch {
+      err => raise InvalidArgumentValue(err.to_string())
     }
   }
   out
 }
 
-///| Get exactly one value by the argument name
+///|
+/// Get exactly one value by the argument name
 pub fn[T : BasicValue] SimpleValue::get_one(
   self : SimpleValue,
   name : String,
@@ -50,13 +52,13 @@ pub fn[T : BasicValue] SimpleValue::get_one(
       "Invalid argument length: \{values.length()}, expected=1, name=\{name}",
     )
   }
-  match (try? T::parse(values[0])) {
-    Err(err) => raise InvalidArgumentValue(err.to_string())
-    Ok(v) => v
+  T::parse(values[0]) catch {
+    err => raise InvalidArgumentValue(err.to_string())
   }
 }
 
-///| Get one/zero value by the argument name
+///|
+/// Get one/zero value by the argument name
 pub fn[T : BasicValue] SimpleValue::get_option(
   self : SimpleValue,
   name : String,
@@ -69,13 +71,13 @@ pub fn[T : BasicValue] SimpleValue::get_option(
     )
   }
   guard values.get(0) is Some(value) else { return None }
-  match (try? T::parse(value)) {
-    Err(err) => raise InvalidArgumentValue(err.to_string())
-    Ok(v) => Some(v)
+  Some(T::parse(value)) catch {
+    err => raise InvalidArgumentValue(err.to_string())
   }
 }
 
-///| Get multiple values by the argument name
+///|
+/// Get multiple values by the argument name
 pub fn[T : BasicValue] SimpleValue::get_array(
   self : SimpleValue,
   name : String,
@@ -83,9 +85,8 @@ pub fn[T : BasicValue] SimpleValue::get_array(
   guard self.args.get(name) is Some(values) else { return [] }
   let out = []
   for value in values {
-    match (try? T::parse(value)) {
-      Err(err) => raise InvalidArgumentValue(err.to_string())
-      Ok(v) => out.push(v)
+    out.push(T::parse(value)) catch {
+      err => raise InvalidArgumentValue(err.to_string())
     }
   }
   out

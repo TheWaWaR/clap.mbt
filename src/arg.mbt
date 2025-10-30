@@ -7,7 +7,7 @@ pub(all) enum Arg {
   Named(
     short~ : Char,
     nargs~ : Nargs,
-    choices~ : @hashset.T[String],
+    choices~ : @hashset.HashSet[String],
     defaults~ : ArrayView[String],
     global~ : Bool,
     value_delimiter~ : String,
@@ -15,7 +15,7 @@ pub(all) enum Arg {
   )
   Positional(
     nargs~ : Nargs,
-    choices~ : @hashset.T[String],
+    choices~ : @hashset.HashSet[String],
     defaults~ : ArrayView[String],
     value_delimiter~ : String,
     common~ : CommonFields
@@ -28,41 +28,44 @@ pub struct CommonFields {
   help : String
 }
 
-///| Create a flag argument
+///|
+/// Create a flag argument
 pub fn Arg::flag(
-  short~ : Char = null_short,
-  store~ : Bool = true,
-  global~ : Bool = false,
-  env_var~ : String = "",
-  help~ : String = "",
+  short? : Char = null_short,
+  store? : Bool = true,
+  global? : Bool = false,
+  env_var? : String = "",
+  help? : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Flag(short~, store~, global~, common~)
 }
 
-///| Create a named argument
+///|
+/// Create a named argument
 pub fn Arg::named(
-  short~ : Char = null_short,
-  nargs~ : Nargs = Any,
-  choices~ : @hashset.T[String] = @hashset.new(),
-  defaults~ : ArrayView[String] = [],
-  global~ : Bool = false,
-  value_delimiter~ : String = ",",
-  env_var~ : String = "",
-  help~ : String = "",
+  short? : Char = null_short,
+  nargs? : Nargs = Any,
+  choices? : @hashset.HashSet[String] = @hashset.new(),
+  defaults? : ArrayView[String] = [],
+  global? : Bool = false,
+  value_delimiter? : String = ",",
+  env_var? : String = "",
+  help? : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Named(short~, nargs~, choices~, defaults~, global~, value_delimiter~, common~)
 }
 
-///| Create a positional argument
+///|
+/// Create a positional argument
 pub fn Arg::positional(
-  nargs~ : Nargs = Any,
-  choices~ : @hashset.T[String] = @hashset.new(),
-  defaults~ : ArrayView[String] = [],
-  value_delimiter~ : String = ",",
-  env_var~ : String = "",
-  help~ : String = "",
+  nargs? : Nargs = Any,
+  choices? : @hashset.HashSet[String] = @hashset.new(),
+  defaults? : ArrayView[String] = [],
+  value_delimiter? : String = ",",
+  env_var? : String = "",
+  help? : String = "",
 ) -> Arg {
   let common = { help, env_var }
   Positional(nargs~, choices~, defaults~, value_delimiter~, common~)
@@ -87,7 +90,7 @@ pub fn Arg::nargs(self : Arg) -> Nargs? {
 }
 
 ///|
-pub fn Arg::choices(self : Arg) -> @hashset.T[String]? {
+pub fn Arg::choices(self : Arg) -> @hashset.HashSet[String]? {
   match self {
     Flag(_) => None
     Named(choices~, ..) => Some(choices)
@@ -146,7 +149,8 @@ pub(all) enum Nargs {
   Range(UInt, UInt)
 } derive(Show, Eq)
 
-///| Check if the length is constrained by Nargs
+///|
+/// Check if the length is constrained by Nargs
 pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => true
@@ -158,7 +162,8 @@ pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
   }
 }
 
-///| Check if the length exceeded the max length
+///|
+/// Check if the length exceeded the max length
 pub fn Nargs::is_exceeded(self : Nargs, length : UInt) -> Bool {
   match self {
     Any => false

@@ -68,8 +68,8 @@ fn[V : Value] Parser::parse(Self, V, ArrayView[String], env_vars? : Map[String, 
 
 pub(all) struct SimpleValue {
   name : String
-  args : @hashmap.T[String, Array[String]]
-  flags : @hashmap.T[String, Bool]
+  args : @hashmap.HashMap[String, Array[String]]
+  flags : @hashmap.HashMap[String, Bool]
   positional_args : Array[String]
   mut subcmd : SimpleValue?
 }
