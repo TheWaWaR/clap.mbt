@@ -74,9 +74,9 @@ pub fn Arg::positional(
 ///|
 pub fn Arg::short(self : Arg) -> Char? {
   match self {
-    Flag(short~, ..) => Some(short)
-    Named(short~, ..) => Some(short)
-    Positional(_) => None
+    Flag(short~, ..) if short != null_short => Some(short)
+    Named(short~, ..) if short != null_short => Some(short)
+    _ => None
   }
 }
 

@@ -413,7 +413,13 @@ test "gen help for arguments without short argument" {
   inspect(
     help_message,
     content=(
-      "Usage: self [OPTIONS]\u{a}\u{a}Options:\u{a}  -\u{0}, --arg1 <ARG1>  Argument 1\u{a}  -\u{0}, --arg2         Argument 2\u{a}  -h, --help         Print help\u{a}"
+      #|Usage: self [OPTIONS]
+      #|
+      #|Options:
+      #|      --arg1 <ARG1>  Argument 1
+      #|      --arg2         Argument 2
+      #|  -h, --help         Print help
+      #|
     ),
   )
 }
