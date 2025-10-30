@@ -402,3 +402,18 @@ test "parse special positional argument with -" {
   assert_eq(value.positional_args, ["-", "-2", "xx"])
   assert_eq(value.subcmd.is_empty(), true)
 }
+
+///|
+test "gen help for arguments without short argument" {
+  let parser = Parser::new(args={
+    "arg1": Arg::named(help="Argument 1"),
+    "arg2": Arg::flag(help="Argument 2"),
+  })
+  let help_message = parser.gen_help_message(["self"], {})
+  inspect(
+    help_message,
+    content=(
+      "Usage: self [OPTIONS]\u{a}\u{a}Options:\u{a}  -\u{0}, --arg1 <ARG1>  Argument 1\u{a}  -\u{0}, --arg2         Argument 2\u{a}  -h, --help         Print help\u{a}"
+    ),
+  )
+}
