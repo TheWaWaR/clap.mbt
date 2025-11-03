@@ -14,12 +14,13 @@ pub(all) struct Parser {
   description : String
 }
 
-///| Create the argument parser specification
+///|
+/// Create the argument parser specification
 pub fn Parser::new(
-  prog~ : String = "PROG",
-  args~ : Map[String, Arg] = {},
-  subcmds~ : Map[String, SubCommand] = {},
-  description~ : String = "",
+  prog? : String = "PROG",
+  args? : Map[String, Arg] = {},
+  subcmds? : Map[String, SubCommand] = {},
+  description? : String = "",
 ) -> Parser {
   { prog, args, subcmds, description }
 }
@@ -35,12 +36,13 @@ pub(all) suberror ParserError {
   InvalidSpec(String)
 } derive(Show)
 
-///| Parse the command line arguments
+///|
+/// Parse the command line arguments
 pub fn[V : Value] Parser::parse(
   self : Parser,
   value : V,
   cli_args : ArrayView[String],
-  env_vars~ : Map[String, String] = {},
+  env_vars? : Map[String, String] = {},
 ) -> String? raise ParserError {
   let mut cmd_name = self.prog
   let subcmd_chains = [cmd_name]
@@ -48,7 +50,7 @@ pub fn[V : Value] Parser::parse(
   let mut args = self.args
   let mut positional_arg : (String, Arg)? = None
   let mut subcmds = self.subcmds
-  let args_length : @hashmap.T[String, UInt] = @hashmap.new()
+  let args_length : @hashmap.HashMap[String, UInt] = @hashmap.new()
   let mut current_value = value
   let mut current_arg : (String, Arg)? = None
   let mut nargs_error : ParserError? = None
@@ -114,7 +116,7 @@ pub fn[V : Value] Parser::parse(
       // == Normal argument ==
       value_string if current_arg is Some((name, arg)) => {
         if arg.choices() is Some(choices) {
-          if choices.size() > 0 && not(choices.contains(value_string)) {
+          if choices.length() > 0 && not(choices.contains(value_string)) {
             raise InvalidArgumentValue(
               "Invalid argument value for \{cmd_name} => \{name}, value=\{value_string}, choices=\{choices}",
             )
@@ -183,10 +185,7 @@ pub fn[V : Value] Parser::parse(
 }
 
 ///|
-fn get_defaults(
-  arg : Arg,
-  env_vars : Map[String, String],
-) -> Iter[@string.View] {
+fn get_defaults(arg : Arg, env_vars : Map[String, String]) -> Iter[StringView] {
   let common = arg.common()
   if not(common.env_var.is_empty()) &&
     env_vars.get(common.env_var) is Some(env_value) {
@@ -199,7 +198,7 @@ fn get_defaults(
 
 ///|
 fn update_args_length(
-  args_length : @hashmap.T[String, UInt],
+  args_length : @hashmap.HashMap[String, UInt],
   name : String,
 ) -> Unit {
   args_length.set(name, args_length.get_or_default(name, 0) + 1)
@@ -211,7 +210,7 @@ fn[V : Value] handle_current_arg(
   cli_arg : String,
   new_arg : (String, Arg)?,
   cmd_name : String,
-  args_length : @hashmap.T[String, UInt],
+  args_length : @hashmap.HashMap[String, UInt],
 ) -> (String, Arg)? raise ParserError {
   guard new_arg is Some((name, arg)) else {
     raise InvalidArgumentName(
@@ -292,7 +291,7 @@ fn analysis_and_check_spec(
 fn[V : Value] complete_level(
   args : Map[String, Arg],
   global_args : Map[String, Arg],
-  args_length : @hashmap.T[String, UInt],
+  args_length : @hashmap.HashMap[String, UInt],
   current_value : V,
   env_vars : Map[String, String],
   final_subcmd : Bool,
