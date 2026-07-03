@@ -46,7 +46,7 @@ pub fn Arg::flag(
 pub fn Arg::named(
   short? : Char = null_short,
   nargs? : Nargs = Any,
-  choices? : @hashset.HashSet[String] = @hashset.new(),
+  choices? : @hashset.HashSet[String] = @hashset.HashSet([]),
   defaults? : ArrayView[String] = [],
   global? : Bool = false,
   value_delimiter? : String = ",",
@@ -61,7 +61,7 @@ pub fn Arg::named(
 /// Create a positional argument
 pub fn Arg::positional(
   nargs? : Nargs = Any,
-  choices? : @hashset.HashSet[String] = @hashset.new(),
+  choices? : @hashset.HashSet[String] = @hashset.HashSet([]),
   defaults? : ArrayView[String] = [],
   value_delimiter? : String = ",",
   env_var? : String = "",
@@ -147,7 +147,20 @@ pub(all) enum Nargs {
   AtMost(UInt)
   /// X <= n < Y
   Range(UInt, UInt)
-} derive(Show, Eq)
+} derive(Eq)
+
+///|
+pub impl Show for Nargs with fn output(self, logger) {
+  let s = match self {
+    Any => "Any"
+    One => "One"
+    Fixed(n) => "Fixed(\{n})"
+    AtLeast(n) => "AtLeast(\{n})"
+    AtMost(n) => "AtMost(\{n})"
+    Range(low, high) => "Range(\{low}, \{high})"
+  }
+  logger.write_string(s)
+}
 
 ///|
 /// Check if the length is constrained by Nargs

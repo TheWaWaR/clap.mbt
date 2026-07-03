@@ -1,0 +1,17 @@
+name = "TheWaWaR/clap"
+
+version = "0.2.6"
+
+readme = "README.md"
+
+repository = "https://github.com/TheWaWaR/clap.mbt"
+
+license = "MIT"
+
+keywords = [ "utils", "command line", "parser" ]
+
+description = "Command Line Argument Parser"
+
+options(
+  source: "src",
+)

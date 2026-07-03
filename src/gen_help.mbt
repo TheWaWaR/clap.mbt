@@ -19,7 +19,7 @@ pub fn Parser::gen_help_message(
     subcmds = subcmd.subcmds
   }
   builder.write_string("[OPTIONS]")
-  if not(subcmds.is_empty()) {
+  if !subcmds.is_empty() {
     builder.write_char(' ')
     builder.write_string("<COMMAND>")
   }
@@ -44,7 +44,7 @@ pub fn Parser::gen_help_message(
   }
   builder.write_char('\n')
   builder.write_char('\n')
-  if not(subcmds.is_empty()) {
+  if !subcmds.is_empty() {
     builder.write_string("Commands:\n")
     let max_length = subcmds
       .iter()
@@ -66,7 +66,7 @@ pub fn Parser::gen_help_message(
     builder.write_string("  \{label}  \{help}\n\n")
   }
   write_args(builder, "Options", args, {}, true)
-  if not(global_args.is_empty()) {
+  if !global_args.is_empty() {
     builder.write_char('\n')
     write_args(builder, "Common Options", global_args, args, false)
   }
@@ -84,8 +84,8 @@ fn write_args(
   builder.write_string("\{title}:\n")
   let options = []
   for name, arg in the_args.iter2() {
-    guard not(cull_args.contains(name)) else { continue }
-    guard not(arg is Positional(..)) else { continue }
+    guard !cull_args.contains(name) else { continue }
+    guard !(arg is Positional(..)) else { continue }
     let short_string = match arg.short() {
       Some(short) => "-\{short},"
       None => "   "

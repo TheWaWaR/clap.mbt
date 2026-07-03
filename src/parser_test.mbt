@@ -1,4 +1,7 @@
 ///|
+using @test {assert_eq}
+
+///|
 test "parse simple named argument" {
   let parser = Parser::new(args={
     "arg1": Arg::named(short='a', nargs=Fixed(1), help="Argument 1"),
@@ -11,7 +14,7 @@ test "parse simple named argument" {
   assert_eq(value.args.get("arg1").unwrap(), ["abc"])
   assert_eq(value.flags.is_empty(), true)
   assert_eq(value.positional_args.is_empty(), true)
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse(value, ["--help"]).unwrap()
   let expected_help_message =
@@ -36,7 +39,7 @@ test "parse simple positional argument" {
   assert_eq(value.args.length(), 0)
   assert_eq(value.flags.is_empty(), true)
   assert_eq(value.positional_args, ["abc"])
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse(value, ["--help"]).unwrap()
   let expected_help_message =
@@ -63,7 +66,7 @@ test "parse simple flag argument" {
   assert_eq(value.args.length(), 0)
   assert_eq(value.flags.get("arg1").unwrap(), true)
   assert_eq(value.positional_args.is_empty(), true)
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse(value, ["--help"]).unwrap()
   let expected_help_message =
@@ -129,7 +132,7 @@ test "parser short named argument" {
   assert_eq(value.args.get("arg1").unwrap(), ["abc"])
   assert_eq(value.flags.is_empty(), true)
   assert_eq(value.positional_args.is_empty(), true)
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
 }
 
 ///|
@@ -144,7 +147,7 @@ test "parse short flag argument" {
   assert_eq(value.args.length(), 0)
   assert_eq(value.flags.get("arg1").unwrap(), true)
   assert_eq(value.positional_args.is_empty(), true)
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse(value, ["-h"]).unwrap()
   let expected_help_message =
@@ -167,10 +170,10 @@ struct CustomValue {
 ///|
 enum CustomCommands {
   SubCommand1(verbose~ : Bool, positional_args~ : Array[UInt])
-} derive(Show, Eq)
+} derive(Eq, Debug)
 
 ///|
-impl Value for CustomValue with set_flag(self, name : String, value : Bool) -> Unit raise ParserError {
+impl Value for CustomValue with fn set_flag(self, name : String, value : Bool) -> Unit raise ParserError {
   match self.subcmd {
     None => {
       guard name == "debug" else {
@@ -190,7 +193,7 @@ impl Value for CustomValue with set_flag(self, name : String, value : Bool) -> U
 }
 
 ///|
-impl Value for CustomValue with add_value(
+impl Value for CustomValue with fn add_value(
   self,
   name : String,
   value : String,
@@ -208,11 +211,11 @@ impl Value for CustomValue with add_value(
     Some(SubCommand1(positional_args~, ..)) =>
       match name {
         "arg2" => {
-          let parsed_value = try? @strconv.parse_uint(value)
-          guard parsed_value is Ok(uint_value) else {
-            raise ParserError::InvalidArgumentValue(
-              "Invalid value \{value} for argument \{name}",
-            )
+          let uint_value = @string.parse_uint(value) catch {
+            _ =>
+              raise ParserError::InvalidArgumentValue(
+                "Invalid value \{value} for argument \{name}",
+              )
           }
           positional_args.push(uint_value)
         }
@@ -225,7 +228,7 @@ impl Value for CustomValue with add_value(
 }
 
 ///|
-impl Value for CustomValue with select_subcmd(self, name : String) -> CustomValue raise ParserError {
+impl Value for CustomValue with fn select_subcmd(self, name : String) -> CustomValue raise ParserError {
   match name {
     "subcmd1" =>
       self.subcmd = Some(SubCommand1(verbose=false, positional_args=[]))
@@ -259,7 +262,7 @@ test "parse custom value" {
   assert_eq(help_message, None)
   assert_eq(value.debug, true)
   assert_eq(value.arg1, "value1")
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = CustomValue::{ debug: false, arg1: "", subcmd: None }
   let help_message = parser.parse(value, ["--help"]).unwrap()
   let expected_help_message =
@@ -373,7 +376,7 @@ test "simple env vars" {
   assert_eq(value.args.get("arg1").unwrap(), ["ijk", "xyz"])
   assert_eq(value.flags.is_empty(), true)
   assert_eq(value.positional_args.is_empty(), true)
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
   let value = SimpleValue::new(parser.prog)
   let help_message = parser.parse(value, ["--help"]).unwrap()
   let expected_help_message =
@@ -400,7 +403,7 @@ test "parse special positional argument with -" {
   assert_eq(value.args.get("arg2").unwrap(), ["333"])
   assert_eq(value.flags.is_empty(), true)
   assert_eq(value.positional_args, ["-", "-2", "xx"])
-  assert_eq(value.subcmd.is_empty(), true)
+  assert_eq(value.subcmd is None, true)
 }
 
 ///|
