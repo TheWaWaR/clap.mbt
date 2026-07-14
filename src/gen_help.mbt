@@ -66,10 +66,10 @@ pub fn Parser::gen_help_message(
     builder.write_string("  \{label}  \{help}\n\n")
   }
   write_args(builder, "Options", args, {}, true)
-  if not(global_args.is_empty()) {
-    builder.write_char('\n')
-    write_args(builder, "Common Options", global_args, args, false)
-  }
+  // `Common Options` lists the global args; it self-skips (and writes its own leading
+  // blank line) when empty, so e.g. at the top level — where the level's own `args`
+  // ARE the globals and thus all get culled — nothing is rendered instead of panicking.
+  write_args(builder, "Common Options", global_args, args, false, leading_blank=true)
   builder.to_string()
 }
 
@@ -80,8 +80,8 @@ fn write_args(
   the_args : Map[String, Arg],
   cull_args : Map[String, Arg],
   include_help : Bool,
+  leading_blank~ : Bool = false,
 ) -> Unit {
-  builder.write_string("\{title}:\n")
   let options = []
   for name, arg in the_args.iter2() {
     guard not(cull_args.contains(name)) else { continue }
@@ -101,6 +101,13 @@ fn write_args(
   if include_help {
     options.push(("-h,", "--help", 9, "Print help"))
   }
+  // No options to show (e.g. every arg was culled): omit the whole section — both the
+  // empty header and the would-be `maximum().unwrap()` panic on an empty list.
+  guard not(options.is_empty()) else { return }
+  if leading_blank {
+    builder.write_char('\n')
+  }
+  builder.write_string("\{title}:\n")
   let max_length = options.iter().map(fn(item) { item.2 }).maximum().unwrap()
   for item in options {
     let (short_string, long_string, length, help) = item

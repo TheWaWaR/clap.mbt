@@ -423,3 +423,26 @@ test "gen help for arguments without short argument" {
     ),
   )
 }
+
+///|
+test "gen help does not panic when every option is a global (top level)" {
+  // Regression: at the top level the level's own `args` ARE the globals, so the
+  // "Common Options" section culls all of them → empty option list. Rendering it
+  // must omit the section, not panic on `maximum().unwrap()` of an empty list.
+  let globals = {
+    "verbose": Arg::flag(short='v', global=true, help="Be verbose"),
+  }
+  let parser = Parser::new(args=globals)
+  let help_message = parser.gen_help_message(["self"], globals)
+  inspect(
+    help_message,
+    content=(
+      #|Usage: self [OPTIONS]
+      #|
+      #|Options:
+      #|  -v, --verbose  Be verbose
+      #|  -h, --help     Print help
+      #|
+    ),
+  )
+}
