@@ -17,6 +17,8 @@ pub(all) suberror ParserError {
   InvalidArgumentValueLength(String)
   TooManyArgs(String)
   InvalidSpec(String)
+  MissingRequiredArgument(command_path~ : Array[String], argument~ : String)
+  MissingSubcommand(command_path~ : Array[String], available~ : Array[String])
 }
 pub fn ParserError::output(Self, &Logger) -> Unit
 pub fn ParserError::to_string(Self) -> String

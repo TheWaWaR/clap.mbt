@@ -34,21 +34,29 @@ pub(all) suberror ParserError {
   InvalidArgumentValueLength(String)
   TooManyArgs(String)
   InvalidSpec(String)
+  MissingRequiredArgument(command_path~ : Array[String], argument~ : String)
+  MissingSubcommand(command_path~ : Array[String], available~ : Array[String])
 }
 
 ///|
 pub impl Show for ParserError with fn output(self, logger) {
-  let (kind, message) = match self {
-    InvalidArgumentName(message) => ("InvalidArgumentName", message)
-    InvalidSubCommandName(message) => ("InvalidSubCommandName", message)
-    InvalidPositionalAsNamed(message) => ("InvalidPositionalAsNamed", message)
-    InvalidArgumentValue(message) => ("InvalidArgumentValue", message)
+  let message = match self {
+    InvalidArgumentName(message) => "InvalidArgumentName: \{message}"
+    InvalidSubCommandName(message) => "InvalidSubCommandName: \{message}"
+    InvalidPositionalAsNamed(message) => "InvalidPositionalAsNamed: \{message}"
+    InvalidArgumentValue(message) => "InvalidArgumentValue: \{message}"
     InvalidArgumentValueLength(message) =>
-      ("InvalidArgumentValueLength", message)
-    TooManyArgs(message) => ("TooManyArgs", message)
-    InvalidSpec(message) => ("InvalidSpec", message)
+      "InvalidArgumentValueLength: \{message}"
+    TooManyArgs(message) => "TooManyArgs: \{message}"
+    InvalidSpec(message) => "InvalidSpec: \{message}"
+    MissingRequiredArgument(command_path~, argument~) => {
+      let argument = argument.to_upper()
+      "error: missing required argument <\{argument}>\n\nUsage: \{command_path.join(" ")} <\{argument}>"
+    }
+    MissingSubcommand(command_path~, available~) =>
+      "error: a subcommand is required\n\nUsage: \{command_path.join(" ")} <COMMAND>\n\nAvailable commands: \{available.join(", ")}"
   }
-  logger.write_string("\{kind}: \{message}")
+  logger.write_string(message)
 }
 
 ///|
@@ -158,7 +166,7 @@ pub fn[V : Value] Parser::parse(
       // == SubCommand ==
       value if subcmds.get(value) is Some(subcmd) => {
         if complete_level(
-            args, global_args, args_length, current_value, env_vars, false,
+            args, global_args, args_length, current_value, env_vars, false, subcmd_chains,
           )
           is Some(err) {
           nargs_error = Some(err)
@@ -191,13 +199,19 @@ pub fn[V : Value] Parser::parse(
     }
   }
   if complete_level(
-      args, global_args, args_length, current_value, env_vars, true,
+      args, global_args, args_length, current_value, env_vars, true, subcmd_chains,
     )
     is Some(err) {
     nargs_error = Some(err)
   }
   if nargs_error is Some(err) {
     raise err
+  }
+  if !subcmds.is_empty() && args_length.is_empty() {
+    let available = subcmds
+      .keys()
+      .fold(init=[], (names, name) => names + [name])
+    raise MissingSubcommand(command_path=subcmd_chains, available~)
   }
   None
 }
@@ -313,6 +327,7 @@ fn[V : Value] complete_level(
   current_value : V,
   env_vars : Map[String, String],
   final_subcmd : Bool,
+  command_path : Array[String],
 ) -> ParserError? raise ParserError {
   let mut nargs_error : ParserError? = None
   let all_args = if final_subcmd {
@@ -371,7 +386,11 @@ fn[V : Value] complete_level(
         }
         let nargs = arg.nargs().unwrap()
         if !nargs.is_valid_length(length) {
-          if positional {
+          if final_subcmd && length == 0 {
+            nargs_error = Some(
+              MissingRequiredArgument(command_path~, argument=name),
+            )
+          } else if positional {
             if !final_subcmd {
               if length != 0 {
                 raise InvalidArgumentValueLength(
