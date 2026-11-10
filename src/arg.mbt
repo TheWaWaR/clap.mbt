@@ -31,43 +31,43 @@ pub struct CommonFields {
 ///|
 /// Create a flag argument
 pub fn Arg::flag(
-  short? : Char = null_short,
-  store? : Bool = true,
-  global? : Bool = false,
-  env_var? : String = "",
-  help? : String = "",
+  short~ : Char = null_short,
+  store~ : Bool = true,
+  global~ : Bool = false,
+  env_var~ : String = "",
+  help~ : String = "",
 ) -> Arg {
-  let common = { help, env_var }
+  let common = { help, env_var, }
   Flag(short~, store~, global~, common~)
 }
 
 ///|
 /// Create a named argument
 pub fn Arg::named(
-  short? : Char = null_short,
-  nargs? : Nargs = Any,
-  choices? : @hashset.HashSet[String] = @hashset.new(),
-  defaults? : ArrayView[String] = [],
-  global? : Bool = false,
-  value_delimiter? : String = ",",
-  env_var? : String = "",
-  help? : String = "",
+  short~ : Char = null_short,
+  nargs~ : Nargs = Any,
+  choices~ : @hashset.HashSet[String] = @hashset.HashSet([]),
+  defaults~ : ArrayView[String] = [],
+  global~ : Bool = false,
+  value_delimiter~ : String = ",",
+  env_var~ : String = "",
+  help~ : String = "",
 ) -> Arg {
-  let common = { help, env_var }
+  let common = { help, env_var, }
   Named(short~, nargs~, choices~, defaults~, global~, value_delimiter~, common~)
 }
 
 ///|
 /// Create a positional argument
 pub fn Arg::positional(
-  nargs? : Nargs = Any,
-  choices? : @hashset.HashSet[String] = @hashset.new(),
-  defaults? : ArrayView[String] = [],
-  value_delimiter? : String = ",",
-  env_var? : String = "",
-  help? : String = "",
+  nargs~ : Nargs = Any,
+  choices~ : @hashset.HashSet[String] = @hashset.HashSet([]),
+  defaults~ : ArrayView[String] = [],
+  value_delimiter~ : String = ",",
+  env_var~ : String = "",
+  help~ : String = "",
 ) -> Arg {
-  let common = { help, env_var }
+  let common = { help, env_var, }
   Positional(nargs~, choices~, defaults~, value_delimiter~, common~)
 }
 
@@ -140,18 +140,36 @@ pub(all) enum Nargs {
   /// n == 1
   One
   /// n == X
-  Fixed(UInt)
+  Fixed(UInt32)
   /// n >= X
-  AtLeast(UInt)
+  AtLeast(UInt32)
   /// n <= X
-  AtMost(UInt)
+  AtMost(UInt32)
   /// X <= n < Y
-  Range(UInt, UInt)
-} derive(Show, Eq)
+  Range(UInt32, UInt32)
+} derive(Eq)
+
+///|
+pub impl Show for Nargs with fn output(self, logger) {
+  match self {
+    Any => logger.write_string("Any")
+    One => logger.write_string("One")
+    Fixed(value) => logger.write_string("Fixed(\{value})")
+    AtLeast(value) => logger.write_string("AtLeast(\{value})")
+    AtMost(value) => logger.write_string("AtMost(\{value})")
+    Range(low, high) => logger.write_string("Range(\{low}, \{high})")
+  }
+}
+
+///|
+pub extend Nargs with Show::{to_string, output}
+
+///|
+pub extend Nargs with Eq::{equal, not_equal}
 
 ///|
 /// Check if the length is constrained by Nargs
-pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
+pub fn Nargs::is_valid_length(self : Nargs, length : UInt32) -> Bool {
   match self {
     Any => true
     One => length == 1
@@ -164,7 +182,7 @@ pub fn Nargs::is_valid_length(self : Nargs, length : UInt) -> Bool {
 
 ///|
 /// Check if the length exceeded the max length
-pub fn Nargs::is_exceeded(self : Nargs, length : UInt) -> Bool {
+pub fn Nargs::is_exceeded(self : Nargs, length : UInt32) -> Bool {
   match self {
     Any => false
     One => length > 1

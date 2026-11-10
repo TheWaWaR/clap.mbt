@@ -1,0 +1,8 @@
+warnings = "-test_unqualified_package"
+
+import {
+  "moonbitlang/core/string",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/core/hashset",
+  "moonbitlang/core/debug",
+}
