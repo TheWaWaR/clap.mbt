@@ -224,7 +224,7 @@ fn get_defaults(arg : Arg, env_vars : Map[String, String]) -> Iter[StringView] {
     let value_delimiter = arg.value_delimiter().unwrap()
     env_value.split(value_delimiter)
   } else {
-    arg.defaults().iter().map(fn(s) { s.view() })
+    arg.defaults().iter().map(fn(s) { s[:] })
   }
 }
 

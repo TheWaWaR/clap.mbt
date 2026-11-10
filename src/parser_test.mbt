@@ -165,9 +165,10 @@ struct CustomValue {
 }
 
 ///|
+#derive(Debug, Eq)
 enum CustomCommands {
   SubCommand1(verbose~ : Bool, positional_args~ : Array[UInt32])
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend CustomCommands with Eq::{equal, not_equal}

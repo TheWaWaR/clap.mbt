@@ -46,6 +46,7 @@ pub struct CommonFields {
   help : String
 }
 
+#derive(Eq)
 pub(all) enum Nargs {
   Any
   One
@@ -53,7 +54,7 @@ pub(all) enum Nargs {
   AtLeast(UInt32)
   AtMost(UInt32)
   Range(UInt32, UInt32)
-} derive(Eq)
+}
 pub fn Nargs::equal(Self, Self) -> Bool
 pub fn Nargs::is_exceeded(Self, UInt32) -> Bool
 pub fn Nargs::is_valid_length(Self, UInt32) -> Bool
